@@ -1,0 +1,3 @@
+"""
+Vocal percussion transcription system.
+"""
