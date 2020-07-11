@@ -2,33 +2,29 @@ import numpy as np
 import aubio
 import pandas as pd
 
+from librosa import core as lrcore
 from pathlib import PurePath
 
 class Track:
     """
     Abstracts out the audio track. Only mono tracks are supported currently.
     """
-    def __init__(self, source):
+    def __init__(self, source, samplerate=44100):
         if isinstance(source, PurePath):
             source = str(source)
         
         if type(source) == str:
-            source = aubio.source(source)
-        if source.channels > 1:
-            raise Exception('File {} has {} channels instead of 1'.format(source.uri, source.channels))
+            filepath = source
+            source, samplerate = lrcore.load(filepath, sr=samplerate, mono=True)
+        else:
+            filepath = None
         
-        self.filepath = source.uri
-        self.n_samples = source.duration
-        self.rate = source.samplerate
+        self.filepath = filepath
+        self.n_samples = len(source)
+        self.rate = samplerate
         self.duration = self.n_samples / self.rate
-        self.hop_size = source.hop_size
-        
-        self.wave = aubio.fvec(self.n_samples)
-        total_read = 0
-        for sample in source:
-            m = sample.shape[0]
-            self.wave[total_read:total_read+m] = sample
-            total_read += m
+        self.hop_size = 512
+        self.wave = source
             
     def segment(self, start, duration):
         return self.wave[int(start*self.rate):int((start+duration)*self.rate)]

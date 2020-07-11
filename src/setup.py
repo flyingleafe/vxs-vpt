@@ -11,6 +11,6 @@ setup(
         'numpy==1.18.*',
         'pandas==1.0.*',
         'torch==1.4.*',
-        'aubio==0.4.*',
+        'aubio==0.4.*'
     )
 )

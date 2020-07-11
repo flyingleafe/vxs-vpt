@@ -59,10 +59,10 @@ class Beatbox1TrackSet(TrackSet):
         
         # bad (non-really-readable) files removal
         # TODO: fix those files instead
-        bbs_files.remove('putfile_dbztenkaichi')
-        bbs_files.remove('callout_Pneumatic')
-        bbs_files.remove('putfile_vonny')
-        bbs_files.remove('putfile_pepouni')
+        #bbs_files.remove('putfile_dbztenkaichi')
+        #bbs_files.remove('callout_Pneumatic')
+        #bbs_files.remove('putfile_vonny')
+        #bbs_files.remove('putfile_pepouni')
         
         if annotation_type == 'HT':
             annotations_path = self.root_dir / 'Annotations_HT'
@@ -75,9 +75,11 @@ class Beatbox1TrackSet(TrackSet):
     
     
 class SampleSet(Dataset):
-    def __init__(self, filenames, normalize=False):
+    def __init__(self, filenames, normalize=False, wave_only=False, pad_specgram=True):
         self.filenames = filenames
         self.normalize = normalize
+        self.wave_only = wave_only
+        self.pad_specgram = pad_specgram
         
     def __len__(self):
         return len(self.filenames)
@@ -87,6 +89,9 @@ class SampleSet(Dataset):
         wave, samplerate = torchaudio.load(self.filenames[index], normalization=self.normalize)
         # danger!
         assert samplerate == 44100
+        
+        if self.wave_only:
+            return None, wave
         
         win_length = int(samplerate * 0.093)  # 93ms window
         hop_length = int(win_length * 0.125)  # 87.5% overlap
@@ -103,13 +108,14 @@ class SampleSet(Dataset):
                                       win_length=win_length, hop_length=hop_length)(wave)
         mel_specgram_db = AmplitudeToDB()(mel_specgram)
         
-        if mel_specgram_db.size()[-1] >= 128:
-            mel_specgram_db = mel_specgram_db[:, :, :128]
-        else:
-            mel_specgram_db = F.pad(mel_specgram_db, (0, 128 - mel_specgram_db.size()[-1], 0, 0, 0, 0),
-                                    mode='constant', value=0)
+        if self.pad_specgram:
+            if mel_specgram_db.size()[-1] >= 128:
+                mel_specgram_db = mel_specgram_db[:, :, :128]
+            else:
+                mel_specgram_db = F.pad(mel_specgram_db, (0, 128 - mel_specgram_db.size()[-1], 0, 0, 0, 0),
+                                        mode='constant', value=0)
         
-        return mel_specgram_db
+        return mel_specgram_db, wave
 
 
 class DataSplit:

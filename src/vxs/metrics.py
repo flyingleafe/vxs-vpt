@@ -43,7 +43,7 @@ def onsets_F1_score(pred, target, ms_threshold=50, prec_rec=False):
     else:
         return f1
     
-def dataset_onset_scores(trackset: TrackSet):
+def dataset_onset_scores(trackset: TrackSet, **kwargs):
     scores = pd.DataFrame(columns=[
         'track',
         'HFC_F1', 'HFC_prec', 'HFC_rec',
@@ -55,10 +55,10 @@ def dataset_onset_scores(trackset: TrackSet):
         onsets_pred_cp = detect_onsets(track, method='complex')
         
         f1_hfc, prec_hfc, rec_hfc = \
-            onsets_F1_score(onsets_pred_hfc['time'].values, annotation['time'].values, prec_rec=True)
+            onsets_F1_score(onsets_pred_hfc['time'].values, annotation['time'].values, prec_rec=True, **kwargs)
     
         f1_cp, prec_cp, rec_cp = \
-            onsets_F1_score(onsets_pred_cp['time'].values, annotation['time'].values, prec_rec=True)
+            onsets_F1_score(onsets_pred_cp['time'].values, annotation['time'].values, prec_rec=True, **kwargs)
         
         scores.loc[i] = [
             PurePath(track.filepath).stem,
