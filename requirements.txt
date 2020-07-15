@@ -9,3 +9,4 @@ catalyst==20.6.*
 aubio==0.4.*
 librosa==0.7.*
 numba==0.48
+scikit-learn

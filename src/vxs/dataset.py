@@ -1,5 +1,6 @@
 import pandas as pd
 import numpy as np
+import librosa as lr
 import glob
 import logging
 import torch
@@ -13,6 +14,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torchaudio.transforms import MelSpectrogram, AmplitudeToDB
 
 from .track import Track
+from .features import mel_specgram
 
 def read_annotation(path):
     return pd.read_csv(path, names=['time', 'class'])
@@ -49,20 +51,13 @@ class TrackSet:
             yield (track, annotation)
             
 class AVPTrackSet(TrackSet):
-    def get_filenames(self, **kwargs):
-        avp_paths = [PurePath(path) for path in glob.glob(str(self.root_dir / '*/*/*.wav'))]
+    def get_filenames(self, subset='*', **kwargs):
+        avp_paths = [PurePath(path) for path in glob.glob(str(self.root_dir / (subset + '/*/*.wav')))]
         return [(str(fp), str(fp.with_suffix('.csv'))) for fp in avp_paths]
     
 class Beatbox1TrackSet(TrackSet):
     def get_filenames(self, annotation_type, **kwargs):
         bbs_files = [PurePath(path).stem for path in glob.glob(str(self.root_dir / '*.wav'))]
-        
-        # bad (non-really-readable) files removal
-        # TODO: fix those files instead
-        #bbs_files.remove('putfile_dbztenkaichi')
-        #bbs_files.remove('callout_Pneumatic')
-        #bbs_files.remove('putfile_vonny')
-        #bbs_files.remove('putfile_pepouni')
         
         if annotation_type == 'HT':
             annotations_path = self.root_dir / 'Annotations_HT'
@@ -75,48 +70,70 @@ class Beatbox1TrackSet(TrackSet):
     
     
 class SampleSet(Dataset):
-    def __init__(self, filenames, normalize=False, wave_only=False, pad_specgram=True):
+    def __init__(self, filenames=None, tracks=None, normalize=False, wave_only=False,
+                 spectre_only=True, pad_specgram=True):
         self.filenames = filenames
+        self.tracks = tracks
         self.normalize = normalize
         self.wave_only = wave_only
+        self.spectre_only = spectre_only
         self.pad_specgram = pad_specgram
         
     def __len__(self):
-        return len(self.filenames)
+        if self.tracks is None:
+            return len(self.filenames)
+        else:
+            return len(self.tracks)
     
     def __getitem__(self, index):
-        # TODO: setup proper parameters for filterbank and FFT as defined in Mehrabi's
-        wave, samplerate = torchaudio.load(self.filenames[index], normalization=self.normalize)
-        # danger!
-        assert samplerate == 44100
+        if self.tracks is None:
+            track = Track(self.filenames[index])
+        else:
+            track = self.tracks[index]
         
         if self.wave_only:
-            return None, wave
+            return track.wave
         
-        win_length = int(samplerate * 0.093)  # 93ms window
-        hop_length = int(win_length * 0.125)  # 87.5% overlap
-        n_fft = max(400, win_length)
-        
-        # there are some very short clips so that default 400-sample FFT cannot pass (actually wtf?)
-        # pad those clips with zeros then (or maybe better mirroring?)
-        if wave.size()[-1] < n_fft:
-            new_wave = torch.zeros(wave.size()[0], n_fft)
-            new_wave[:, :wave.size()[-1]] = wave
-            wave = new_wave
-        
-        mel_specgram = MelSpectrogram(samplerate, n_fft=n_fft,
-                                      win_length=win_length, hop_length=hop_length)(wave)
-        mel_specgram_db = AmplitudeToDB()(mel_specgram)
+        mel_specgram_pw = torch.tensor(mel_specgram(track, to_db=False)).unsqueeze(0)
         
         if self.pad_specgram:
-            if mel_specgram_db.size()[-1] >= 128:
-                mel_specgram_db = mel_specgram_db[:, :, :128]
+            if mel_specgram_pw.size()[-1] >= 128:
+                mel_specgram_pw = mel_specgram_pw[:, :, :128]
             else:
-                mel_specgram_db = F.pad(mel_specgram_db, (0, 128 - mel_specgram_db.size()[-1], 0, 0, 0, 0),
-                                        mode='constant', value=0)
+                mel_specgram_pw = F.pad(mel_specgram_pw, (0, 128 - mel_specgram_pw.size()[-1], 0, 0, 0, 0),
+                                     mode='constant', value=0)
         
-        return mel_specgram_db, wave
+        mel_specgram_db = AmplitudeToDB()(mel_specgram_pw)
+        
+        if self.spectre_only:
+            return mel_specgram_db
+        else:
+            return mel_specgram_db, track.wave
 
+
+class SegmentSet(Dataset):
+    def __init__(self, trackset, classes=['kd', 'sd', 'hho', 'hhc'], frame_window=4096, return_class=True):
+        self.classes = classes
+        self.return_class = return_class
+        self.frame_window = frame_window
+        self.segments = []
+        for (track, annotation) in trackset.annotated_tracks():
+            for idx, row in annotation.iterrows():
+                time, event_class = row[0], row[1]
+                if event_class in self.classes:
+                    segm = track.segment_frames(int(time*track.rate), self.frame_window)
+                    if segm.n_samples == self.frame_window:  # do not add cropped stuff on the end
+                        self.segments.append((segm, event_class))
+                    
+    def __len__(self):
+        return len(self.segments)
+    
+    def __getitem__(self, index):
+        if self.return_class:
+            return self.segments[index]
+        else:
+            return self.segments[index][0]
+            
 
 class DataSplit:
 

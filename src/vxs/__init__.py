@@ -7,3 +7,4 @@ from .metrics import *
 from .dataset import *
 from .encoder import *
 from .features import *
+from .classification import *

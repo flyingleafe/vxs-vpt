@@ -27,7 +27,11 @@ class Track:
         self.wave = source
             
     def segment(self, start, duration):
-        return self.wave[int(start*self.rate):int((start+duration)*self.rate)]
+        return self.segment_frames(int(start*self.rate), int(duration*self.rate))
+    
+    def segment_frames(self, start, length):
+        segm = self.wave[start:start+length]
+        return Track(segm, samplerate=self.rate)
 
 def detect_onsets(track, method):
     onset_detector = aubio.onset(method=method)
