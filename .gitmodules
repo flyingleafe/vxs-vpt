@@ -1,0 +1,3 @@
+[submodule "magenta"]
+	path = magenta
+	url = https://github.com/flyingleafe/magenta.git
