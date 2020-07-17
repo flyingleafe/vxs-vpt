@@ -14,7 +14,7 @@ from torch.utils.data.sampler import SubsetRandomSampler
 from torchaudio.transforms import MelSpectrogram, AmplitudeToDB
 
 from .track import Track
-from .features import mel_specgram
+from .features import mel_specgram_cae
 
 def read_annotation(path):
     return pd.read_csv(path, names=['time', 'class'])
@@ -70,14 +70,20 @@ class Beatbox1TrackSet(TrackSet):
     
     
 class SampleSet(Dataset):
-    def __init__(self, filenames=None, tracks=None, normalize=False, wave_only=False,
-                 spectre_only=True, pad_specgram=True):
+    def __init__(self, filenames=None, tracks=None, normalize=True, wave_only=False,
+                 spectre_only=True, cache_specgram=True, pad_specgram=True):
         self.filenames = filenames
         self.tracks = tracks
         self.normalize = normalize
         self.wave_only = wave_only
         self.spectre_only = spectre_only
         self.pad_specgram = pad_specgram
+        if cache_specgram:
+            self.specgram_cache = {}
+        else:
+            self.specgram_cache = None
+            
+        self.cuda = torch.cuda.is_available()
         
     def __len__(self):
         if self.tracks is None:
@@ -86,6 +92,9 @@ class SampleSet(Dataset):
             return len(self.tracks)
     
     def __getitem__(self, index):
+        if self.spectre_only and self.specgram_cache is not None and index in self.specgram_cache:
+            return self.specgram_cache[index]
+        
         if self.tracks is None:
             track = Track(self.filenames[index])
         else:
@@ -93,17 +102,12 @@ class SampleSet(Dataset):
         
         if self.wave_only:
             return track.wave
+                
+        device = 'cuda' if self.cuda else 'cpu'
+        mel_specgram_db = mel_specgram_cae(track, pad_time=128, device=device, normalize=self.normalize)
         
-        mel_specgram_pw = torch.tensor(mel_specgram(track, to_db=False)).unsqueeze(0)
-        
-        if self.pad_specgram:
-            if mel_specgram_pw.size()[-1] >= 128:
-                mel_specgram_pw = mel_specgram_pw[:, :, :128]
-            else:
-                mel_specgram_pw = F.pad(mel_specgram_pw, (0, 128 - mel_specgram_pw.size()[-1], 0, 0, 0, 0),
-                                     mode='constant', value=0)
-        
-        mel_specgram_db = AmplitudeToDB()(mel_specgram_pw)
+        if self.specgram_cache is not None:
+            self.specgram_cache[index] = mel_specgram_db
         
         if self.spectre_only:
             return mel_specgram_db
@@ -137,7 +141,7 @@ class SegmentSet(Dataset):
 
 class DataSplit:
 
-    def __init__(self, dataset, test_train_split=0.8, val_train_split=0.1, shuffle=False):
+    def __init__(self, dataset, test_train_split=0.8, val_train_split=0.1, shuffle=False, size_limit=None):
         self.dataset = dataset
 
         dataset_size = len(dataset)
@@ -153,6 +157,9 @@ class DataSplit:
 
         self.train_indices, self.val_indices = train_indices[ : validation_split], train_indices[validation_split:]
 
+        if size_limit is not None:
+            self.train_indices = self.train_indices
+        
         self.train_sampler = SubsetRandomSampler(self.train_indices)
         self.val_sampler = SubsetRandomSampler(self.val_indices)
         self.test_sampler = SubsetRandomSampler(self.test_indices)

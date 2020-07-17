@@ -43,27 +43,79 @@ def onsets_F1_score(pred, target, ms_threshold=50, prec_rec=False):
     else:
         return f1
     
-def dataset_onset_scores(trackset: TrackSet, **kwargs):
-    scores = pd.DataFrame(columns=[
-        'track',
-        'HFC_F1', 'HFC_prec', 'HFC_rec',
-        'Complex_F1', 'Complex_prec', 'Complex_rec'
-    ])
+def classes_F1_score(pred, target, classes=None, ms_threshold=50, confusion_matrix=True):
+    thr = ms_threshold / 1000
+    
+    if classes is None:
+        classes = np.append(np.union1d(pred['class'].unique(), target['class'].unique()), 'sil')
+    else:
+        classes = np.append(classes, 'sil')
+        
+    confusion_matrix = pd.DataFrame(columns=classes, index=classes).fillna(0)
+    
+    i = 0
+    j = 0
+    
+    while i < len(pred) or j < len(target):
+        if i >= len(pred):
+            true_class = target.loc[j, 'class']
+            confusion_matrix.loc[true_class, 'sil'] += 1
+            j += 1
+        elif j >= len(target):
+            pred_class = pred.loc[i, 'class']
+            confusion_matrix.loc['sil', pred_class] += 1
+            i += 1
+        elif pred.loc[i, 'time'] >= target.loc[j, 'time'] - thr and pred.loc[i, 'time'] <= target.loc[j, 'time'] + thr:
+            pred_class = pred.loc[i, 'class']
+            true_class = target.loc[j, 'class']
+            confusion_matrix.loc[true_class, pred_class] += 1
+            i += 1
+            j += 1
+        elif pred.loc[i, 'time'] < target.loc[j, 'time'] - thr:
+            pred_class = pred.loc[i, 'class']
+            confusion_matrix.loc['sil', pred_class] += 1
+            i += 1
+        else:
+            true_class = target.loc[j, 'class']
+            confusion_matrix.loc[true_class, 'sil'] += 1
+            j += 1
+    
+    return confusion_matrix
+
+def cf_to_prec_rec_F1(cf):
+    classes = cf.columns
+    classes.remove('sil')
+    res = pd.DataFrame(columns=['prec', 'rec', 'F1'], index=classes)
+    for cl in classes:
+        tp = cf.loc[cl, cl]
+        fp = cf.loc[cl, :].sum() - tp
+        fn = cf.loc[:, cl].sum() - tp
+        prec = tp / (tp + fp)
+        rec = tp / (tp + fn)
+        if prec == 0 or rec == 0:
+            f1 = 0
+        else:
+            f1 = 2 * prec * rec / (prec + rec)
+        res.loc[cl] = [prec, rec, f1]
+    return res
+    
+def dataset_onset_scores(trackset: TrackSet, methods=['hfc', 'complex', 'specflux'], **kwargs):
+    columns = ['track']
+    for method in methods:
+        columns += [f'{method}_F1', f'{method}_prec', f'{method}_rec']
+    
+    scores = pd.DataFrame(columns=columns)
     
     for (i, (track, annotation)) in enumerate(trackset.annotated_tracks()):
-        onsets_pred_hfc = detect_onsets(track, method='hfc')
-        onsets_pred_cp = detect_onsets(track, method='complex')
+        row = [PurePath(track.filepath).stem]
+        for method in methods:
+            onsets_pred = detect_onsets(track, method=method)
         
-        f1_hfc, prec_hfc, rec_hfc = \
-            onsets_F1_score(onsets_pred_hfc['time'].values, annotation['time'].values, prec_rec=True, **kwargs)
+            f1, prec, rec = \
+                onsets_F1_score(onsets_pred['time'].values, annotation['time'].values, prec_rec=True, **kwargs)
     
-        f1_cp, prec_cp, rec_cp = \
-            onsets_F1_score(onsets_pred_cp['time'].values, annotation['time'].values, prec_rec=True, **kwargs)
+            row += [f1, prec, rec]
         
-        scores.loc[i] = [
-            PurePath(track.filepath).stem,
-            f1_hfc, prec_hfc, rec_hfc,
-            f1_cp, prec_cp, rec_cp
-        ]
+        scores.loc[i] = row
     
     return scores

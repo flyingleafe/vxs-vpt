@@ -1,5 +1,9 @@
 import numpy as np
 import librosa as lr
+import torch
+import torch.nn.functional as F
+
+from torchaudio.transforms import AmplitudeToDB
 
 def mel_specgram(track, n_mels=128, win_size=4096, hop_size=512, to_db=True, **kwargs):
     sgram = lr.feature.melspectrogram(track.wave, track.rate,
@@ -8,6 +12,23 @@ def mel_specgram(track, n_mels=128, win_size=4096, hop_size=512, to_db=True, **k
         sgram = lr.core.power_to_db(sgram)
         
     return sgram
+
+def mel_specgram_cae(track, pad_time=None, device='cpu', normalize=True, **kwargs):
+    S = torch.tensor(mel_specgram(track, to_db=False, **kwargs), device=device).unsqueeze(0)
+        
+    if pad_time is not None:
+        if S.size()[-1] >= pad_time:
+            S = S[:, :, :pad_time]
+        else:
+            S = F.pad(S, (0, pad_time - S.size()[-1], 0, 0, 0, 0),
+                      mode='constant', value=0)
+        
+    S_db = AmplitudeToDB()(S)
+    if normalize:
+        S_db /= 80   # arbitrary value, but we'll see
+        
+    return S_db
+         
 
 def mfcc(track, n_mfcc=20, win_size=4096, hop_size=512, **kwargs):
     return lr.feature.mfcc(track.wave, track.rate,

@@ -1,19 +1,33 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.patches as mpatches
+
 from IPython import display
 
 from .track import *
 
-def plot_track(track, onsets=None, event_type=None, title=None, return_events=False):
+def plot_track(track, onsets=None, event_type=None, color_events=False,
+               title=None, return_events=False):
     fig = plt.figure(figsize=(20, 5))
     plt.plot(np.linspace(0, track.duration, track.n_samples), track.wave)
     
     events = []
     if onsets is not None:
+        if color_events:
+            color_map = {}
+            classes = sorted(onsets['class'].unique())
+            colors = ['g', 'r', 'c', 'm', 'y', 'k', 'b']
+            patches = []
+            for cl, color in zip(classes, colors):
+                color_map[cl] = color
+                patches.append(mpatches.Patch(color=color, label=cl))
+            plt.legend(handles=patches, loc='upper right')
+        
         for (idx, row) in onsets.iterrows():
             if event_type is None or row['class'] == event_type:
                 events.append(row['time'])
-                plt.axvline(x=row['time'], color='r')
+                color = 'r' if not color_events else color_map[row['class']]
+                plt.axvline(x=row['time'], color=color)
                 
     plt.ylim((-1.5, 1.5))
     plt.xlabel('Time, seconds')
@@ -28,7 +42,7 @@ def plot_track(track, onsets=None, event_type=None, title=None, return_events=Fa
 def plot_segment(track, segm_start, segm_len=0.093):
     segm = track.segment(segm_start, segm_len)
     fig = plt.figure(figsize=(5,2))
-    plt.plot(np.arange(len(segm)), segm)
+    plt.plot(np.arange(segm.n_samples), segm.wave)
     plt.show()
     return segm
 
