@@ -71,13 +71,14 @@ class Beatbox1TrackSet(TrackSet):
     
 class SampleSet(Dataset):
     def __init__(self, filenames=None, tracks=None, normalize=True, wave_only=False,
-                 spectre_only=True, cache_specgram=True, pad_specgram=True):
+                 spectre_only=True, cache_specgram=True, pad_specgram=128, pad_track=None):
         self.filenames = filenames
         self.tracks = tracks
         self.normalize = normalize
         self.wave_only = wave_only
         self.spectre_only = spectre_only
         self.pad_specgram = pad_specgram
+        self.pad_track = pad_track
         if cache_specgram:
             self.specgram_cache = {}
         else:
@@ -102,9 +103,13 @@ class SampleSet(Dataset):
         
         if self.wave_only:
             return track.wave
+        
+        if self.pad_track is not None:
+            track = track.cut_or_pad(self.pad_track)
                 
         device = 'cuda' if self.cuda else 'cpu'
-        mel_specgram_db = mel_specgram_cae(track, pad_time=128, device=device, normalize=self.normalize)
+        mel_specgram_db = mel_specgram_cae(track, pad_time=self.pad_specgram,
+                                           device=device, normalize=self.normalize)
         
         if self.specgram_cache is not None:
             self.specgram_cache[index] = mel_specgram_db

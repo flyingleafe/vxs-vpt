@@ -32,6 +32,18 @@ class Track:
     def segment_frames(self, start, length):
         segm = self.wave[start:start+length]
         return Track(segm, samplerate=self.rate)
+    
+    def cut_or_pad(self, to_length):
+        if to_length == self.n_samples:
+            return self
+        elif to_length < self.n_samples:
+            res = Track(self.wave[:to_length], self.rate)
+            res.filepath = self.filepath
+            return res
+        else:
+            res = Track(np.pad(self.wave, (0, to_length - self.n_samples)), self.rate)
+            res.filepath = self.filepath
+            return res
 
 def detect_onsets(track, method):
     onset_detector = aubio.onset(method=method)

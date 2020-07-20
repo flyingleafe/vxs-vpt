@@ -83,7 +83,7 @@ def classes_F1_score(pred, target, classes=None, ms_threshold=50, confusion_matr
     return confusion_matrix
 
 def cf_to_prec_rec_F1(cf):
-    classes = cf.columns
+    classes = list(cf.columns)
     classes.remove('sil')
     res = pd.DataFrame(columns=['prec', 'rec', 'F1'], index=classes)
     for cl in classes:
