@@ -107,7 +107,7 @@ class SampleSet(Dataset):
         if self.pad_track is not None:
             track = track.cut_or_pad(self.pad_track)
                 
-        device = 'cuda' if self.cuda else 'cpu'
+        device = 'cpu' # 'cuda' if self.cuda else 'cpu'
         mel_specgram_db = mel_specgram_cae(track, pad_time=self.pad_specgram,
                                            device=device, normalize=self.normalize)
         

@@ -1,6 +1,6 @@
 beatboxset1 https://archive.org/compress/beatboxset1/formats=UNKNOWN,ITEM%20TILE,TEXT,WAVE,ARCHIVE%20BITTORRENT,METADATA
-vim-sketch https://zenodo.org/record/2596911/files/Vim_Sketch_Dataset.zip?download=1
 mehrabi-eval https://zenodo.org/record/804262/files/vocal_imitation_percussion_sounds_dataset.zip?download=1
 avp-dataset https://zenodo.org/record/3250230/files/AVP_Dataset.zip?download=1
+vocal-sketch https://zenodo.org/record/1251982/files/interactiveaudiolab/VocalSketchDataSet-1.1.2.zip?download=1
 200-drum-machines http://www.hexawe.net/mess/200.Drum.Machines/drums.zip
 groove-midi https://storage.googleapis.com/magentadata/datasets/groove/groove-v1.0.0-midionly.zip
