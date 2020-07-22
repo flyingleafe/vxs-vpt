@@ -2,14 +2,62 @@ import torch
 
 from torch import nn
 
+CAE_CONFIGS = {
+    'square-1': {
+        'outer_kernel_size': (5,5),
+        'strides': [(2,2), (2,2), (2,2), (2,2)]
+    },
+    'square-2': {
+        'outer_kernel_size': (5,5),
+        'strides': [(2,2), (2,2), (2,2), (4,4)]
+    },
+    'square-3': {
+        'outer_kernel_size': (5,5),
+        'strides': [(2,2), (2,2), (4,4), (4,4)]
+    },
+    'tall-1': {
+        'outer_kernel_size': (5,3),
+        'strides': [(2,2), (2,2), (2,2), (2,4)]
+    },
+    'tall-2': {
+        'outer_kernel_size': (5,3),
+        'strides': [(2,2), (2,2), (2,4), (2,4)]
+    },
+    'tall-3': {
+        'outer_kernel_size': (5,3),
+        'strides': [(2,2), (2,4), (2,4), (2,4)]
+    },
+    'tall-4': {
+        'outer_kernel_size': (5,3),
+        'strides': [(2,2), (2,4), (2,4), (4,4)]
+    },
+    'wide-1': {
+        'outer_kernel_size': (3,5),
+        'strides': [(2,2), (2,2), (2,2), (4,2)]
+    },
+    'wide-2': {
+        'outer_kernel_size': (3,5),
+        'strides': [(2,2), (2,2), (4,2), (4,2)]
+    },
+    'wide-3': {
+        'outer_kernel_size': (3,5),
+        'strides': [(2,2), (4,2), (4,2), (4,2)]
+    },
+    'wide-4': {
+        'outer_kernel_size': (3,5),
+        'strides': [(2,2), (4,2), (4,2), (4,4)]
+    },
+}
+
 class ConvAE(nn.Module):
     """
     Mehrabi's convolutional autoencoder architecture
     """
     def __init__(self, outer_kernel_size=(5,5), strides=[(2,2)]*4,
-                 mid_kernel_size=9, padding_mode='reflect'):
+                 mid_kernel_size=9, padding_mode='zeros'):
         super().__init__()
         assert len(strides) == 4
+        strides = [tuple(st) for st in strides]
         
         kernel_nums = [8, 16, 24, 32]
         kernels_strides = list(zip(kernel_nums, strides))
@@ -48,4 +96,8 @@ class ConvAE(nn.Module):
         y = self.decoder(z)
         return y, z
         
-        
+def get_CAE_model(config_type, ckp_path=None):
+    model = ConvAE(**CAE_CONFIGS[config_type])
+    if ckp_path is not None:
+        model.load_state_dict(torch.load(ckp_path)['model_state_dict'])
+    return model

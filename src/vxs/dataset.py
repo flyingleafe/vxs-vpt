@@ -19,7 +19,20 @@ from .features import mel_specgram_cae
 def read_annotation(path):
     return pd.read_csv(path, names=['time', 'class'])
 
-class TrackSet:
+class ListDataset(Dataset):
+    """
+    Simple class to wrap a list of tensors
+    """
+    def __init__(self, data):
+        self._data = data
+        
+    def __getitem__(self, index):
+        return self._data[index]
+    
+    def __len__(self):
+        return len(self._data)
+
+class TrackSet(Dataset):
     """
     Abstract class which defines the set of tracks
     """

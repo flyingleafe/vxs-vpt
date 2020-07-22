@@ -75,7 +75,7 @@ def detect_beats(track, method, buf_size=1024, hop_size=512):
             beats.append(beat_detector.get_last_s())
             
     bdiff = 60./ np.diff(beats)
-    tempo = np.mean(bdiff)
+    tempo = np.median(bdiff)
     
     classes = ['b']*len(beats)
     beats_detected = pd.DataFrame.from_dict({

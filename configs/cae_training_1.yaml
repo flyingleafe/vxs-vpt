@@ -1,0 +1,61 @@
+group: 'cae-initial'
+
+data:
+    base_frame: 4096
+    pad_track_n: 16
+    
+    datasets:
+        - name: 'vocal-sketch'
+          type: 'samples'
+          path: '../data/vocal-sketch/interactiveaudiolab-VocalSketchDataSet-6c9f381/vocal_imitations/included/*.wav'
+        - name: '200-drum-machines'
+          type: 'samples'
+          path: '../data/200-drum-machines/drums/*/*.wav'
+        - name: 'avp-set-fixed'
+          type: 'segments'
+          subtype: 'AVPTrackSet'
+          subargs:
+              root_dir: '../data/avp-dataset/AVP_Dataset'
+              subset: 'Fixed'
+          frame_window_n: 16
+          
+    splitter:
+        shuffle: true
+        val_train_split: 0.1
+        test_train_split: 1
+
+num_epochs: 30
+experiments:
+    square-1:
+        outer_kernel_size: [5,5]
+        strides: [[2,2], [2,2], [2,2], [2,2]]
+    square-2:
+        outer_kernel_size: [5,5]
+        strides: [[2,2], [2,2], [2,2], [4,4]]
+    square-3:
+        outer_kernel_size: [5,5]
+        strides: [[2,2], [2,2], [4,4], [4,4]]
+    tall-1:
+        outer_kernel_size: [5,3]
+        strides: [[2,2], [2,2], [2,2], [2,4]]
+    tall-2:
+        outer_kernel_size: [5,3]
+        strides: [[2,2], [2,2], [2,4], [2,4]]
+    tall-3:
+        outer_kernel_size: [5,3]
+        strides: [[2,2], [2,4], [2,4], [2,4]]
+    tall-4:
+        outer_kernel_size: [5,3]
+        strides: [[2,2], [2,4], [2,4], [4,4]]
+    wide-1:
+        outer_kernel_size: [3,5]
+        strides: [[2,2], [2,2], [2,2], [4,2]]
+    wide-2:
+        outer_kernel_size: [3,5]
+        strides: [[2,2], [2,2], [4,2], [4,2]]
+    wide-3:
+        outer_kernel_size: [3,5]
+        strides: [[2,2], [4,2], [4,2], [4,2]]
+    wide-4:
+        outer_kernel_size: [3,5]
+        strides: [[2,2], [4,2], [4,2], [4,4]]
