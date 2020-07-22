@@ -1,4 +1,5 @@
 import pandas as pd
+import mir_eval
 
 from pathlib import PurePath
 
@@ -6,40 +7,9 @@ from .dataset import TrackSet
 from .track import *
 
 def onsets_F1_score(pred, target, ms_threshold=50, prec_rec=False):
-    thr = ms_threshold / 1000
-    i = 0
-    j = 0
-    tp = 0
-    fp = 0
-    fn = 0
-    while i < len(pred) or j < len(target):
-        if i >= len(pred):
-            fn += 1
-            j += 1
-        elif j >= len(target):
-            fp += 1
-            i += 1
-        elif pred[i] >= target[j] - thr and pred[i] <= target[j] + thr:
-            tp += 1
-            i += 1
-            j += 1
-        elif pred[i] < target[j] - thr:
-            fp += 1
-            i += 1
-        else:
-            fn += 1
-            j += 1
-    
-    precision = tp / (tp + fp)
-    recall = tp / (tp + fn)
-    
-    if precision == 0 or recall == 0:
-        f1 = 0
-    else:
-        f1 = 2 * precision * recall / (precision + recall)
-    
+    f1, prec, rec = mir_eval.onset.f_measure(target, pred, ms_threshold / 1000.0)
     if prec_rec:
-        return f1, precision, recall
+        return f1, prec, rec
     else:
         return f1
     

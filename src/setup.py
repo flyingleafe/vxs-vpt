@@ -8,9 +8,10 @@ setup(
     author_email='flyingleafe@gmail.com',
     packages=find_packages(),
     install_requires=(
-        'numpy==1.18.*',
+        'numpy==1.19.*',
         'pandas==1.0.*',
         'torch==1.5.*',
-        'aubio==0.4.*'
+        'aubio==0.4.*',
+        'mir_eval',
     )
 )

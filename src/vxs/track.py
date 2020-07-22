@@ -23,8 +23,7 @@ class Track:
         self.n_samples = len(source)
         self.rate = samplerate
         self.duration = self.n_samples / self.rate
-        self.hop_size = 512
-        self.wave = source
+        self.wave = source.astype('float32')
             
     def segment(self, start, duration):
         return self.segment_frames(int(start*self.rate), int(duration*self.rate))
@@ -45,14 +44,14 @@ class Track:
             res.filepath = self.filepath
             return res
 
-def detect_onsets(track, method):
-    onset_detector = aubio.onset(method=method)
-    hs = track.hop_size
-    N = track.n_samples // hs
+def detect_onsets(track, method, buf_size=1024, hop_size=512):
+    onset_detector = aubio.onset(method=method, buf_size=buf_size, hop_size=hop_size,
+                                 samplerate=track.rate)
+    N = track.n_samples // hop_size
     onsets_sec = []
     onsets = []
     for i in range(N):
-        chunk = track.wave[i*hs:(i+1)*hs]
+        chunk = track.wave[i*hop_size:(i+1)*hop_size]
         if onset_detector(chunk):
             onsets_sec.append(onset_detector.get_last_s())
             onsets.append(onset_detector.get_last())
@@ -64,3 +63,34 @@ def detect_onsets(track, method):
         'class': classes
     })
     return onsets_detected
+
+def detect_beats(track, method, buf_size=1024, hop_size=512):
+    beat_detector = aubio.tempo(method=method, buf_size=buf_size, hop_size=hop_size,
+                                samplerate=track.rate)
+    N = track.n_samples // hop_size
+    beats = []
+    for i in range(N):
+        chunk = track.wave[i*hop_size:(i+1)*hop_size]
+        if beat_detector(chunk):
+            beats.append(beat_detector.get_last_s())
+            
+    bdiff = 60./ np.diff(beats)
+    tempo = np.mean(bdiff)
+    
+    classes = ['b']*len(beats)
+    beats_detected = pd.DataFrame.from_dict({
+        'time': np.array(beats),
+        'class': classes
+    })
+    return beats_detected, tempo
+
+def specdesc(track, method, buf_size=1024, hop_size=512):
+    pv = aubio.pvoc(buf_size, hop_size)
+    sd = aubio.specdesc(method, buf_size)
+    N = track.n_samples // hop_size
+    desc = np.array([])
+    for i in range(N):
+        chunk = track.wave[i*hop_size:(i+1)*hop_size]
+        desc = np.append(desc, sd(pv(chunk)))
+        
+    return desc
