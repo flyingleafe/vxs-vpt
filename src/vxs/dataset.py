@@ -85,6 +85,9 @@ class Beatbox1TrackSet(TrackSet):
 class SampleSet(Dataset):
     def __init__(self, filenames=None, tracks=None, normalize=True, wave_only=False,
                  spectre_only=True, cache_specgram=True, pad_specgram=128, pad_track=None):
+        if isinstance(filenames, (str, PurePath)):
+            filenames = glob.glob(str(filenames))
+        
         self.filenames = filenames
         self.tracks = tracks
         self.normalize = normalize
@@ -115,7 +118,7 @@ class SampleSet(Dataset):
             track = self.tracks[index]
         
         if self.wave_only:
-            return track.wave
+            return track
         
         if self.pad_track is not None:
             track = track.cut_or_pad(self.pad_track)

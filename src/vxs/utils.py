@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 
@@ -13,6 +14,12 @@ def plot_track(track, onsets=None, event_type=None, color_events=False,
     
     events = []
     if onsets is not None:
+        if not isinstance(onsets, pd.DataFrame):
+            onsets = pd.DataFrame.from_dict({
+                'time': onsets,
+                'class': ['x']*len(onsets)
+            })
+        
         if color_events:
             color_map = {}
             classes = sorted(onsets['class'].unique())
@@ -48,6 +55,12 @@ def plot_segment(track, segm_start, segm_len=0.093):
 
 def play_audio(track, sr=44100):
     if isinstance(track, Track):
-        return display.Audio(track.wave, rate=track.rate)
+        dsp = display.Audio(track.wave, rate=track.rate)
     else:
-        return display.Audio(track, rate=sr)
+        dsp = display.Audio(track, rate=sr)
+    display.display(dsp)
+    
+def display_track(track):
+    print(track.filepath)
+    plot_track(track)
+    play_audio(track)

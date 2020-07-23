@@ -72,7 +72,8 @@ def main(config_path):
     common_set = ConcatDataset(datasets)
     print(f'Total samples: {len(common_set)}')
         
-    save_file_name = f'{group}_{PAD_TRACK_LEN}.pt'
+    save_file_name = f'../data_temp/{group}_{PAD_TRACK_LEN}.pt'
+    os.makedirs(save_file_name)
     if os.path.isfile(save_file_name):
         print(f'Found saved pre-processed spectrograms: {save_file_name}')
         tensors = torch.load(save_file_name)
