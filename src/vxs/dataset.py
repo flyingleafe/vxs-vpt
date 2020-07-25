@@ -160,11 +160,23 @@ class SegmentSet(Dataset):
         self.frame_window = frame_window
         self.segments = []
         for (track, annotation) in trackset.annotated_tracks():
-            for idx, row in annotation.iterrows():
-                time, event_class = row[0], row[1]
+            for idx in range(len(annotation)):
+                row = annotation.iloc[idx]
+                time, event_class = row['time'], row['class']
                 if event_class in self.classes:
-                    segm = track.segment_frames(int(time*track.rate), self.frame_window)
-                    if segm.n_samples == self.frame_window:  # do not add cropped stuff on the end
+                    if frame_window is not None:
+                        segm = track.segment_frames(int(time*track.rate), self.frame_window)
+                        if segm.n_samples == self.frame_window:  # do not add cropped stuff on the end
+                            self.segments.append((segm, event_class))
+                    else:
+                        if idx < len(annotation) - 1:
+                            end_time = annotation.loc[idx+1, 'time']
+                            end_frame = int(end_time*track.rate) - 1
+                        else:
+                            end_frame = track.n_samples - 1
+                        cur_frame = int(time * track.rate)
+                        win_len = end_frame - cur_frame
+                        segm = track.segment_frames(cur_frame, win_len)
                         self.segments.append((segm, event_class))
                     
     def __len__(self):

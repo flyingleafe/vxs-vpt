@@ -1,3 +1,4 @@
+import abc
 import numpy as np
 import aubio
 import pandas as pd
@@ -20,11 +21,14 @@ class Track:
             filepath = None
         
         self.filepath = filepath
-        self.n_samples = len(source)
         self.rate = samplerate
         self.duration = self.n_samples / self.rate
         self.wave = source.astype('float32')
-            
+    
+    @abc.abstractproperty
+    def n_samples(self):
+        return len(self.wave)
+    
     def segment(self, start, duration):
         return self.segment_frames(int(start*self.rate), int(duration*self.rate))
     
