@@ -17,7 +17,9 @@ from .track import Track
 from .features import mel_specgram_cae
 
 def read_annotation(path):
-    return pd.read_csv(path, names=['time', 'class'])
+    df = pd.read_csv(path, names=['time', 'class'])
+    df['class'] = df['class'].str.strip()
+    return df
 
 class ListDataset(Dataset):
     """
@@ -64,8 +66,23 @@ class TrackSet(Dataset):
             yield (track, annotation)
             
 class AVPTrackSet(TrackSet):
-    def get_filenames(self, subset='*', **kwargs):
-        avp_paths = [PurePath(path) for path in glob.glob(str(self.root_dir / (subset + '/*/*.wav')))]
+    def get_filenames(self, subset='*', recordings_type='both', participant=None, **kwargs):
+        participant_mask = '*' if participant is None else f'Participant_{participant}'
+        glob_path = str(self.root_dir / f'{subset}/{participant_mask}/*.wav')
+        avp_paths = [PurePath(path) for path in glob.glob(glob_path)]
+        
+        if len(avp_paths) == 0:
+            raise ValueError('No paths are found; check your parameters')
+            
+        if recordings_type == 'both':
+            pass
+        elif recordings_type == 'hits':
+            avp_paths = [p for p in avp_paths if 'Improv' not in str(p)]
+        elif recordings_type == 'improvs':
+            avp_paths = [p for p in avp_paths if 'Improv' in str(p)]
+        else:
+            raise ValueError(f'Unknown recording type {recordings_type} (expected both, hits or improvs)')
+            
         return [(str(fp), str(fp.with_suffix('.csv'))) for fp in avp_paths]
     
 class Beatbox1TrackSet(TrackSet):

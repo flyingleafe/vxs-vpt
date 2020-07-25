@@ -60,8 +60,12 @@ def cf_to_prec_rec_F1(cf):
         tp = cf.loc[cl, cl]
         fp = cf.loc[cl, :].sum() - tp
         fn = cf.loc[:, cl].sum() - tp
-        prec = tp / (tp + fp)
-        rec = tp / (tp + fn)
+        if tp == 0:
+            prec = 0
+            rec = 0
+        else:
+            prec = tp / (tp + fp)
+            rec = tp / (tp + fn)
         if prec == 0 or rec == 0:
             f1 = 0
         else:
