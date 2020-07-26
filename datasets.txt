@@ -1,6 +1,7 @@
-beatboxset1 https://archive.org/compress/beatboxset1/formats=UNKNOWN,ITEM%20TILE,TEXT,WAVE,ARCHIVE%20BITTORRENT,METADATA
-mehrabi-eval https://zenodo.org/record/804262/files/vocal_imitation_percussion_sounds_dataset.zip?download=1
-avp-dataset https://zenodo.org/record/3250230/files/AVP_Dataset.zip?download=1
-vocal-sketch https://zenodo.org/record/1251982/files/interactiveaudiolab/VocalSketchDataSet-1.1.2.zip?download=1
-200-drum-machines http://www.hexawe.net/mess/200.Drum.Machines/drums.zip
-groove-midi https://storage.googleapis.com/magentadata/datasets/groove/groove-v1.0.0-midionly.zip
+beatboxset1 https://archive.org/compress/beatboxset1/formats=UNKNOWN,ITEM%20TILE,TEXT,WAVE,ARCHIVE%20BITTORRENT,METADATA zip
+mehrabi-eval https://zenodo.org/record/804262/files/vocal_imitation_percussion_sounds_dataset.zip?download=1 zip
+avp-dataset https://zenodo.org/record/3250230/files/AVP_Dataset.zip?download=1 zip
+vocal-sketch https://zenodo.org/record/1251982/files/interactiveaudiolab/VocalSketchDataSet-1.1.2.zip?download=1 zip
+200-drum-machines http://www.hexawe.net/mess/200.Drum.Machines/drums.zip zip
+groove-midi https://storage.googleapis.com/magentadata/datasets/groove/groove-v1.0.0-midionly.zip zip
+ramires-lvt https://www.dropbox.com/s/3ikj0j8ktk9jd0y/ramires_data.rar?dl=1 rar

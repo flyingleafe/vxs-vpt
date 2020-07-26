@@ -10,6 +10,8 @@ mkShell {
   buildInputs = [
     nodejs
     python37Packages.virtualenv
+    fluidsynth_1
+    libsndfile
   ];
 
   # Fix wheel building and init virtualenv
