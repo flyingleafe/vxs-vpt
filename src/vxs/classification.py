@@ -14,10 +14,10 @@ class ClassicFeatureTransformer(BaseEstimator, TransformerMixin):
         if feature_type not in ('mfcc', 'ramires'):
             raise ValueError('Unknown feature type:' + feature_type)
         self.feature_type = feature_type
-    
+
     def fit(self, X, y=None):
         return self
-    
+
     def transform(self, X, y=None):
         X_ = []
         for segm in X:
@@ -29,14 +29,14 @@ class ClassicFeatureTransformer(BaseEstimator, TransformerMixin):
                 features = ramires_features(segm).ravel()
             X_.append(features)
         return X_
-    
+
 class CAEFeatureTransform(BaseEstimator, TransformerMixin):
     def __init__(self, encoder):
         self.encoder = encoder
-     
+
     def fit(self, X, y=None):
         return self
-       
+
     def transform(self, X, y=None):
         X_ = []
         for segm in X:
@@ -44,7 +44,7 @@ class CAEFeatureTransform(BaseEstimator, TransformerMixin):
             z = self.encoder(S.unsqueeze(0))
             X_.append(z.detach().squeeze().numpy().ravel())
         return X_
-    
+
 def make_knn_classic(feature_type, normalize=True, **kwargs):
     feature_transformer = ClassicFeatureTransformer(feature_type)
     estimators = [('features', feature_transformer)]
@@ -54,6 +54,7 @@ def make_knn_classic(feature_type, normalize=True, **kwargs):
     return Pipeline(estimators)
 
 def make_knn_cae(encoder, **kwargs):
+    encoder.eval()
     return Pipeline([
         ('cae_features', CAEFeatureTransform(encoder)),
         ('knn', KNeighborsClassifier(**kwargs))

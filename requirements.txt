@@ -1,3 +1,4 @@
+wheel
 -e src
 -e magenta
 jupyterlab==1.2.*

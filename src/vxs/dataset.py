@@ -6,6 +6,7 @@ import logging
 import torch
 import torchaudio
 import torch.nn.functional as F
+import note_seq
 
 from pathlib import PurePath
 from functools import lru_cache
@@ -13,12 +14,32 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.sampler import SubsetRandomSampler
 from torchaudio.transforms import MelSpectrogram, AmplitudeToDB
 
-from .track import Track
-from .features import mel_specgram_cae
+from vxs import constants
+from vxs.track import Track
+from vxs.features import mel_specgram_cae
+from vxs.encoding import note_seq_to_annotation
 
-def read_annotation(path):
-    df = pd.read_csv(path, names=['time', 'class'])
+class Annotation(pd.DataFrame):
+    """
+    Special DataFrame which can also contain info about bpm
+    """
+    def __init__(self, *args, bpm=None, **kwargs):
+        super(Annotation, self).__init__(*args, **kwargs)
+        self.bpm = bpm
+
+def read_annotation(path, total_duration=None):
+    path = PurePath(path)
+    if path.suffix == '.csv':
+        df = Annotation(pd.read_csv(path, names=['time', 'class']))
+    elif path.suffix == '.mid':
+        seq = note_seq.midi_file_to_note_sequence(path)
+        df = Annotation(note_seq_to_annotation(seq), bpm=seq.tempos[0].qpm)
+    else:
+        raise ValueError(f'Unsupported annotation file extension: {path.suffix}')
+
     df['class'] = df['class'].str.strip()
+    if total_duration is not None:
+        df = Annotation(df[df['time'] < total_duration], bpm=df.bpm)
     return df
 
 class ListDataset(Dataset):
@@ -27,10 +48,10 @@ class ListDataset(Dataset):
     """
     def __init__(self, data):
         self._data = data
-        
+
     def __getitem__(self, index):
         return self._data[index]
-    
+
     def __len__(self):
         return len(self._data)
 
@@ -41,70 +62,103 @@ class TrackSet(Dataset):
     def __init__(self, root_dir, **kwargs):
         self.root_dir = PurePath(root_dir)
         self.annotated_track_names = self.get_filenames(**kwargs)
-        self.track_map = {PurePath(tp).stem: idx for (idx, (tp, ap)) in enumerate(self.annotated_track_names)}
-        
+        self.track_map = {
+            PurePath(tp).stem: idx
+            for (idx, (tp, ap)) in enumerate(self.annotated_track_names)
+        }
+
     def __len__(self):
         return len(self.annotated_track_names)
-    
+
     def __getitem__(self, index):
         if type(index) == str:
             return self.annotated_track_names[self.track_map[index]]
         else:
             return self.annotated_track_names[index]
-    
+
     def get(self, index):
         track_name, annotation_name = self[index]
         return Track(track_name), read_annotation(annotation_name)
-    
+
     def get_filenames(self, **kwargs):
         raise NotImplementedError()
-        
+
     def annotated_tracks(self):
         for (track_name, annotation_name) in self.annotated_track_names:
             track = Track(track_name)
-            annotation = read_annotation(annotation_name)
+            # there are silly onsets which are after the track's end or
+            # a couple of milliseconds before that
+            # we'll say that onsets which are after 10ms before track end
+            # are silly and we won't count them
+            annotation = read_annotation(annotation_name, track.duration - 0.01)
             yield (track, annotation)
-            
+
+class GenTrackSet(TrackSet):
+    def get_filenames(self, anno_ext='.mid', **kwargs):
+        wav_paths = [PurePath(p) for p in glob.glob(str(self.root_dir / '*.wav'))]
+        anno_paths = [p.with_suffix(anno_ext) for p in wav_paths]
+        return list(zip(wav_paths, anno_paths))
+
 class AVPTrackSet(TrackSet):
-    def get_filenames(self, subset='*', recordings_type='both', participant=None, **kwargs):
-        participant_mask = '*' if participant is None else f'Participant_{participant}'
+
+    CLASS_MAP = {
+        'kd': 'Kick',
+        'sd': 'Snare',
+        'hhc': 'HHopened',
+        'hho': 'HHclosed'
+    }
+
+    def get_filenames(self, subset='*', recordings_type='all',
+                      participant=None, **kwargs):
+
+        if participant is None or type(participant) != int:
+            participant_mask = '*'
+        else:
+            participant_mask = f'Participant_{participant}'
+
         glob_path = str(self.root_dir / f'{subset}/{participant_mask}/*.wav')
         avp_paths = [PurePath(path) for path in glob.glob(glob_path)]
-        
+
         if len(avp_paths) == 0:
             raise ValueError('No paths are found; check your parameters')
-            
-        if recordings_type == 'both':
+
+        if participant is not None and type(participant) != int:
+            avp_paths = [p for p in avp_paths if int(p.parts[-2].split('_')[1]) in participant]
+
+        if recordings_type == 'all':
             pass
         elif recordings_type == 'hits':
             avp_paths = [p for p in avp_paths if 'Improv' not in str(p)]
         elif recordings_type == 'improvs':
             avp_paths = [p for p in avp_paths if 'Improv' in str(p)]
+        elif recordings_type in AVPTrackSet.CLASS_MAP:
+            avp_paths = [p for p in avp_paths
+                         if AVPTrackSet.CLASS_MAP[recordings_type] in str(p)]
         else:
-            raise ValueError(f'Unknown recording type {recordings_type} (expected both, hits or improvs)')
-            
+            raise ValueError(f'Unknown recording type {recordings_type} (expected all, hits, improvs or class type)')
+
         return [(str(fp), str(fp.with_suffix('.csv'))) for fp in avp_paths]
-    
+
 class Beatbox1TrackSet(TrackSet):
     def get_filenames(self, annotation_type, **kwargs):
         bbs_files = [PurePath(path).stem for path in glob.glob(str(self.root_dir / '*.wav'))]
-        
+
         if annotation_type == 'HT':
             annotations_path = self.root_dir / 'Annotations_HT'
         elif annotation_type == 'DR':
             annotations_path = self.root_dir / 'Annotations_DR'
         else:
             raise ValueError('Unknown annotations variant: ' + annotation_type)
-        
+
         return [(self.root_dir / (stem + '.wav'), annotations_path / (stem + '.csv')) for stem in bbs_files]
-    
-    
+
+
 class SampleSet(Dataset):
     def __init__(self, filenames=None, tracks=None, normalize=True, wave_only=False,
                  spectre_only=True, cache_specgram=True, pad_specgram=128, pad_track=None):
         if isinstance(filenames, (str, PurePath)):
             filenames = glob.glob(str(filenames))
-        
+
         self.filenames = filenames
         self.tracks = tracks
         self.normalize = normalize
@@ -116,37 +170,37 @@ class SampleSet(Dataset):
             self.specgram_cache = {}
         else:
             self.specgram_cache = None
-            
+
         self.cuda = torch.cuda.is_available()
-        
+
     def __len__(self):
         if self.tracks is None:
             return len(self.filenames)
         else:
             return len(self.tracks)
-    
+
     def __getitem__(self, index):
         if self.spectre_only and self.specgram_cache is not None and index in self.specgram_cache:
             return self.specgram_cache[index]
-        
+
         if self.tracks is None:
             track = Track(self.filenames[index])
         else:
             track = self.tracks[index]
-        
+
         if self.wave_only:
             return track
-        
+
         if self.pad_track is not None:
             track = track.cut_or_pad(self.pad_track)
-                
+
         device = 'cpu' # 'cuda' if self.cuda else 'cpu'
         mel_specgram_db = mel_specgram_cae(track, pad_time=self.pad_specgram,
                                            device=device, normalize=self.normalize)
-        
+
         if self.specgram_cache is not None:
             self.specgram_cache[index] = mel_specgram_db
-        
+
         if self.spectre_only:
             return mel_specgram_db
         else:
@@ -178,16 +232,16 @@ class SegmentSet(Dataset):
                         win_len = end_frame - cur_frame
                         segm = track.segment_frames(cur_frame, win_len)
                         self.segments.append((segm, event_class))
-                    
+
     def __len__(self):
         return len(self.segments)
-    
+
     def __getitem__(self, index):
         if self.return_class:
             return self.segments[index]
         else:
             return self.segments[index][0]
-            
+
 
 class DataSplit:
 
@@ -209,7 +263,7 @@ class DataSplit:
 
         if size_limit is not None:
             self.train_indices = self.train_indices
-        
+
         self.train_sampler = SubsetRandomSampler(self.train_indices)
         self.val_sampler = SubsetRandomSampler(self.val_indices)
         self.test_sampler = SubsetRandomSampler(self.test_indices)

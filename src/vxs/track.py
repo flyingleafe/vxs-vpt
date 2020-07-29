@@ -2,40 +2,46 @@ import abc
 import numpy as np
 import aubio
 import pandas as pd
+import soundfile as sf
 
 from librosa import core as lrcore
 from pathlib import PurePath
+
+from vxs import constants
 
 class Track:
     """
     Abstracts out the audio track. Only mono tracks are supported currently.
     """
-    def __init__(self, source, samplerate=44100):
+    def __init__(self, source, samplerate=constants.DEFAULT_SAMPLE_RATE):
         if isinstance(source, PurePath):
             source = str(source)
-        
+
         if type(source) == str:
             filepath = source
             source, samplerate = lrcore.load(filepath, sr=samplerate, mono=True)
         else:
             filepath = None
-        
+
         self.filepath = filepath
         self.rate = samplerate
-        self.duration = self.n_samples / self.rate
         self.wave = source.astype('float32')
-    
+
     @abc.abstractproperty
     def n_samples(self):
         return len(self.wave)
-    
+
+    @abc.abstractproperty
+    def duration(self):
+        return self.n_samples / self.rate
+
     def segment(self, start, duration):
         return self.segment_frames(int(start*self.rate), int(duration*self.rate))
-    
+
     def segment_frames(self, start, length):
         segm = self.wave[start:start+length]
         return Track(segm, samplerate=self.rate)
-    
+
     def cut_or_pad(self, to_length):
         if to_length == self.n_samples:
             return self
@@ -48,7 +54,11 @@ class Track:
             res.filepath = self.filepath
             return res
 
-def detect_onsets(track, method, buf_size=1024, hop_size=512):
+    def save(self, filepath):
+        sf.write(str(filepath), self.wave, self.rate)
+
+def detect_onsets(track, method, buf_size=constants.DEFAULT_ONSET_BUF_SIZE,
+                  hop_size=constants.DEFAULT_ONSET_HOP_SIZE, **kwargs):
     onset_detector = aubio.onset(method=method, buf_size=buf_size, hop_size=hop_size,
                                  samplerate=track.rate)
     N = track.n_samples // hop_size
@@ -68,7 +78,8 @@ def detect_onsets(track, method, buf_size=1024, hop_size=512):
     })
     return onsets_detected
 
-def detect_beats(track, method, buf_size=1024, hop_size=512):
+def detect_beats(track, method, buf_size=constants.DEFAULT_ONSET_BUF_SIZE,
+                 hop_size=constants.DEFAULT_ONSET_HOP_SIZE, **kwargs):
     beat_detector = aubio.tempo(method=method, buf_size=buf_size, hop_size=hop_size,
                                 samplerate=track.rate)
     N = track.n_samples // hop_size
@@ -77,10 +88,10 @@ def detect_beats(track, method, buf_size=1024, hop_size=512):
         chunk = track.wave[i*hop_size:(i+1)*hop_size]
         if beat_detector(chunk):
             beats.append(beat_detector.get_last_s())
-            
+
     bdiff = 60./ np.diff(beats)
     tempo = np.median(bdiff)
-    
+
     classes = ['b']*len(beats)
     beats_detected = pd.DataFrame.from_dict({
         'time': np.array(beats),
@@ -88,7 +99,8 @@ def detect_beats(track, method, buf_size=1024, hop_size=512):
     })
     return beats_detected, tempo
 
-def specdesc(track, method, buf_size=1024, hop_size=512):
+def specdesc(track, method, buf_size=constants.DEFAULT_ONSET_BUF_SIZE,
+             hop_size=constants.DEFAULT_ONSET_HOP_SIZE, **kwargs):
     pv = aubio.pvoc(buf_size, hop_size)
     sd = aubio.specdesc(method, buf_size)
     N = track.n_samples // hop_size
@@ -96,5 +108,5 @@ def specdesc(track, method, buf_size=1024, hop_size=512):
     for i in range(N):
         chunk = track.wave[i*hop_size:(i+1)*hop_size]
         desc = np.append(desc, sd(pv(chunk)))
-        
+
     return desc

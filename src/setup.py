@@ -13,5 +13,6 @@ setup(
         'torch==1.5.*',
         'aubio==0.4.*',
         'mir_eval',
+        'pysoundfile',
     )
 )
