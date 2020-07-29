@@ -98,7 +98,7 @@ def onsets_probas_to_pianoroll(onset_steps, probas,
     """
     num_frames = onset_steps[-1] + 1
     num_classes = probas.shape[1]
-    probas = probas / _COUNTED_CLASS_PROBAS_DISCOUNTED   # do that in order to obtain scaled likelihoods
+    #probas = probas / _COUNTED_CLASS_PROBAS_DISCOUNTED   # do that in order to obtain scaled likelihoods
     # TODO: how to combine with silences?
 
     probas_sil = np.hstack((np.ones((len(probas), 1))*silence_prob, probas*(1-silence_prob)))

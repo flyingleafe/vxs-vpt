@@ -21,3 +21,19 @@ MIDI_PITCHES_SHORT = {
     'hhc': 44,
     'hho': 67,
 }
+
+SF2_AVP_INCLUDED_SAMPLES_FIXED = {
+    1: ['sd_12', 'kd_23', 'kd_19', 'sd_25', 'hhc_29', 'hhc_1', 'hho_8', 'hho_15'],
+    2: ['sd_13', 'kd_4', 'kd_23', 'sd_21', 'hhc_15', 'hhc_4', 'hho_23', 'hho_7'],
+    3: ['sd_4', 'kd_8', 'kd_22', 'sd_23', 'hhc_23', 'hhc_16', 'hho_22', 'hho_0'],
+    4: ['sd_3', 'kd_0', 'kd_17', 'sd_14', 'hhc_11', 'hhc_15', 'hho_8', 'hho_24'],
+    5: ['sd_1', 'kd_4', 'kd_10', 'sd_0', 'hhc_0', 'hhc_19', 'hho_0', 'hho_1']
+}
+
+SF2_AVP_INCLUDED_SAMPLES_PERSONAL = {
+    1: ['sd_0', 'kd_0', 'kd_2', 'sd_2', 'hhc_2', 'hhc_0', 'hho_2', 'hho_3'],
+    2: ['sd_0', 'kd_3', 'kd_2', 'sd_2', 'hhc_2', 'hhc_0', 'hho_2', 'hho_0'],
+    3: ['sd_0', 'kd_0', 'kd_2', 'sd_2', 'hhc_6', 'hhc_1', 'hho_2', 'hho_0'],
+    4: ['sd_0', 'kd_0', 'kd_2', 'sd_2', 'hhc_2', 'hhc_0', 'hho_2', 'hho_0'],
+    5: ['sd_1', 'kd_1', 'kd_0', 'sd_3', 'hhc_4', 'hhc_2', 'hho_0', 'hho_1'],
+}

@@ -24,14 +24,6 @@ PRIMERS = [
     # need more?
 ]
 
-SF2_INCLUDED_SAMPLES_FIXED = {
-    1: ['sd_12', 'kd_23', 'kd_19', 'sd_25', 'hhc_29', 'hhc_1', 'hho_8', 'hho_15'],
-    2: ['sd_13', 'kd_4', 'kd_23', 'sd_21', 'hhc_15', 'hhc_4', 'hho_23', 'hho_7'],
-    3: ['sd_4', 'kd_8', 'kd_22', 'sd_23', 'hhc_23', 'hhc_16', 'hho_22', 'hho_0'],
-    4: ['sd_3', 'kd_0', 'kd_17', 'sd_14', 'hhc_11', 'hhc_15', 'hho_8', 'hho_24'],
-    5: ['sd_1', 'kd_4', 'kd_10', 'sd_0', 'hhc_0', 'hhc_19', 'hho_0', 'hho_1']
-}
-
 LONG_TO_SHORT = {
     36: 35,
     38: 27,
@@ -43,7 +35,7 @@ def generate_track(model, primer, length,
                    bpm=100, temperature=1.0,
                    adapt_short_sounds=True, longer_sounds=True):
     primer_drums = vxs.classes_to_drums(primer)
-    track_raw = model.generate_drum_track(length, primer_drums, temperature=temperature, branch_factor=1)
+    track_raw = model.generate_drum_track(length, primer_drums, temperature=temperature)
 
     if adapt_short_sounds:
         # use shorter sounds
