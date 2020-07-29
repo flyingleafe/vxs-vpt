@@ -37,3 +37,16 @@ SF2_AVP_INCLUDED_SAMPLES_PERSONAL = {
     4: ['sd_0', 'kd_0', 'kd_2', 'sd_2', 'hhc_2', 'hhc_0', 'hho_2', 'hho_0'],
     5: ['sd_1', 'kd_1', 'kd_0', 'sd_3', 'hhc_4', 'hhc_2', 'hho_0', 'hho_1'],
 }
+
+SF2_BEATBOXSET1_INCLUDED_SAMPLES = {
+    'hex': ['s_2', 'k_7', 'k_0', 's_11', 'hc_12', 'hc_8', 'ho_5', 'ho_1'],
+    'adidao': ['s_2', 'k_7', 'k_0', 's_11', 'hc_12', 'hc_8', 'ho_5', 'ho_1'],
+    'daq': ['s_5', 'k_1', 'k_26', 's_8', 'hc_48', 'hc_4', 'ho_8', 'ho_5'],
+    'bui': ['sk_25', 'k_3', 'k_35', 'sk_32', 'hc_3', 'hc_27', 'ho_4', 'ho_30'],
+    'luckeymonkey': ['sk_14', 'k_3', 'k_12', 'sk_10', 'hc_0', 'hc_23', 'ho_0', 'ho_5'],
+}
+
+ANNOTATION_CLASSES = {
+    'avp': ['kd', 'sd', 'hho', 'hhc'],
+    'beatboxset1': ['k', 'hc', 'ho', 'sb', 'sk', 's']
+}
