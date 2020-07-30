@@ -23,7 +23,7 @@ def plot_track(track, onsets=None, event_type=None, color_events=False,
         if color_events:
             color_map = {}
             classes = sorted(onsets['class'].unique())
-            colors = ['g', 'r', 'c', 'm', 'y', 'k', 'b']
+            colors = ['g', 'r', 'c', 'm', 'y', 'k', 'b', 'beige', 'grey', 'purple', 'lime']
             patches = []
             for cl, color in zip(classes, colors):
                 color_map[cl] = color

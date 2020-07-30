@@ -1,3 +1,4 @@
+import abc
 import pandas as pd
 import numpy as np
 import librosa as lr
@@ -42,6 +43,11 @@ def read_annotation(path, total_duration=None):
         df = Annotation(df[df['time'] < total_duration], bpm=df.bpm)
     return df
 
+def map_annotation(df, mapping):
+    for i in range(len(df)):
+        df.loc[i, 'class'] = mapping.get(df.loc[i, 'class'], '')
+    return df[df['class'] != '']
+
 class ListDataset(Dataset):
     """
     Simple class to wrap a list of tensors
@@ -76,9 +82,12 @@ class TrackSet(Dataset):
         else:
             return self.annotated_track_names[index]
 
+    def get_annotation(self, filename, **kwargs):
+        return read_annotation(filename, **kwargs)
+
     def get(self, index):
         track_name, annotation_name = self[index]
-        return Track(track_name), read_annotation(annotation_name)
+        return Track(track_name), self.get_annotation(annotation_name)
 
     def get_filenames(self, **kwargs):
         raise NotImplementedError()
@@ -90,7 +99,7 @@ class TrackSet(Dataset):
             # a couple of milliseconds before that
             # we'll say that onsets which are after 10ms before track end
             # are silly and we won't count them
-            annotation = read_annotation(annotation_name, track.duration - 0.01)
+            annotation = self.get_annotation(annotation_name, track.duration - 0.01)
             yield (track, annotation)
 
 class GenTrackSet(TrackSet):
@@ -140,7 +149,14 @@ class AVPTrackSet(TrackSet):
         return [(str(fp), str(fp.with_suffix('.csv'))) for fp in avp_paths]
 
 class Beatbox1TrackSet(TrackSet):
-    def get_filenames(self, annotation_type, **kwargs):
+    def get_annotation(self, filename, **kwargs):
+        df = read_annotation(filename, **kwargs)
+        if self.remap_classes:
+            df = map_annotation(df, constants.BEATBOXSET1_CLASS_MAP)
+        return df
+
+    def get_filenames(self, annotation_type, remap_classes=False, **kwargs):
+        self.remap_classes = remap_classes
         bbs_files = [PurePath(path).stem for path in glob.glob(str(self.root_dir / '*.wav'))]
 
         if annotation_type == 'HT':
@@ -152,6 +168,45 @@ class Beatbox1TrackSet(TrackSet):
 
         return [(self.root_dir / (stem + '.wav'), annotations_path / (stem + '.csv')) for stem in bbs_files]
 
+def default_name_to_class(filename):
+    if filename.startswith('k'):
+        return 'kd'
+    elif filename.startswith('s'):
+        return 'sd'
+    elif 'hc' in filename:
+        return 'hhc'
+    elif 'ho' in filename:
+        return 'hho'
+    else:
+        return ''
+
+class SimpleSampleSet(Dataset):
+    def __init__(self, filenames, classes=None, name_to_class=default_name_to_class):
+        if classes is None:
+            classes = [name_to_class(PurePath(p).stem) for p in filenames]
+        self.items = np.array([(Track(fn), cl) for fn, cl in zip(filenames, classes)])
+
+    def __len__(self):
+        return len(self.items)
+
+    def __getitem__(self, index):
+        return self.items[index]
+
+    @classmethod
+    def from_csv(Class, csv_path, path_col='file', class_col='class'):
+        csv_path = PurePath(csv_path)
+        root = csv_path.parent
+        df = pd.read_csv(csv_path)
+        filenames = [root / fp for fp in df[path_col].values]
+        classes = df[class_col].values
+        return Class(filenames, classes)
+
+    @abc.abstractproperty
+    def tracks(self):
+        return np.array([item[0] for item in self.items])
+
+    def classes(self):
+        return np.array([item[1] for item in self.items])
 
 class SampleSet(Dataset):
     def __init__(self, filenames=None, tracks=None, normalize=True, wave_only=False,
@@ -170,8 +225,6 @@ class SampleSet(Dataset):
             self.specgram_cache = {}
         else:
             self.specgram_cache = None
-
-        self.cuda = torch.cuda.is_available()
 
     def __len__(self):
         if self.tracks is None:
@@ -194,7 +247,7 @@ class SampleSet(Dataset):
         if self.pad_track is not None:
             track = track.cut_or_pad(self.pad_track)
 
-        device = 'cpu' # 'cuda' if self.cuda else 'cpu'
+        device = 'cpu'
         mel_specgram_db = mel_specgram_cae(track, pad_time=self.pad_specgram,
                                            device=device, normalize=self.normalize)
 

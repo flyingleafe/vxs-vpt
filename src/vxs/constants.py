@@ -50,3 +50,12 @@ ANNOTATION_CLASSES = {
     'avp': ['kd', 'sd', 'hho', 'hhc'],
     'beatboxset1': ['k', 'hc', 'ho', 'sb', 'sk', 's']
 }
+
+BEATBOXSET1_CLASS_MAP = {
+    'k': 'kd',
+    'ho': 'hho',
+    'hc': 'hhc',
+    's': 'sd',
+    'sb': 'sd',
+    'sk': 'sd',
+}
