@@ -14,6 +14,12 @@ class Track:
     Abstracts out the audio track. Only mono tracks are supported currently.
     """
     def __init__(self, source, samplerate=constants.DEFAULT_SAMPLE_RATE):
+        if isinstance(source, Track):
+            self.filepath = source.filepath
+            self.rate = source.rate
+            self.wave = source.wave
+            return
+
         if isinstance(source, PurePath):
             source = str(source)
 

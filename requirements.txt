@@ -14,3 +14,4 @@ librosa==0.7.*
 numba==0.48
 scikit-learn
 pyfluidsynth
+ipywidgets

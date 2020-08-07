@@ -99,7 +99,7 @@ class TrackSet(Dataset):
             # a couple of milliseconds before that
             # we'll say that onsets which are after 10ms before track end
             # are silly and we won't count them
-            annotation = self.get_annotation(annotation_name, track.duration - 0.01)
+            annotation = self.get_annotation(annotation_name, total_duration=track.duration - 0.01)
             yield (track, annotation)
 
 class GenTrackSet(TrackSet):
@@ -180,11 +180,25 @@ def default_name_to_class(filename):
     else:
         return ''
 
+def fetch_track_name(track):
+    if isinstance(track, (str, PurePath)):
+        return PurePath(track).stem
+    elif isinstance(track, Track):
+        return PurePath(track.filepath).stem
+    else:
+        return ValueError(f'fetch_track_name got input of type {type(track)}')
+
 class SimpleSampleSet(Dataset):
-    def __init__(self, filenames, classes=None, name_to_class=default_name_to_class):
-        if classes is None:
-            classes = [name_to_class(PurePath(p).stem) for p in filenames]
-        self.items = np.array([(Track(fn), cl) for fn, cl in zip(filenames, classes)])
+    def __init__(self, tracks, classes=None,
+                 with_classes=True, name_to_class=default_name_to_class):
+        self.with_classes = with_classes
+
+        if self.with_classes:
+            if classes is None:
+                classes = [name_to_class(fetch_track_name(t)) for t in tracks]
+            self.items = np.array([(Track(t), cl) for t, cl in zip(tracks, classes)])
+        else:
+            self.items = np.array([Track(t) for t in tracks])
 
     def __len__(self):
         return len(self.items)
@@ -203,10 +217,37 @@ class SimpleSampleSet(Dataset):
 
     @abc.abstractproperty
     def tracks(self):
-        return np.array([item[0] for item in self.items])
+        if self.with_classes:
+            return np.array([item[0] for item in self.items])
+        else:
+            return self.items
 
+    @abc.abstractproperty
     def classes(self):
-        return np.array([item[1] for item in self.items])
+        if self.with_classes:
+            return np.array([item[1] for item in self.items])
+        else:
+            return None
+
+
+def stratified_subset(ds: SimpleSampleSet, percentage, random_seed=None):
+    assert percentage <= 1.0 and percentage > 0.0
+    classes = np.unique(ds.classes)
+    selected_tracks = np.array([])
+    selected_classes = []
+
+    if random_seed is not None:
+        np.random.seed(random_seed)
+
+    for cl in classes:
+        ixs = np.arange(len(ds))[ds.classes == cl]
+        num_cl = len(ixs)
+        np.random.shuffle(ixs)
+        num_selected = int(np.ceil(num_cl * percentage))
+        selected_tracks = np.concatenate((selected_tracks, ds.tracks[ixs[:num_selected]]))
+        selected_classes += [cl]*num_selected
+
+    return SimpleSampleSet(selected_tracks, selected_classes)
 
 class SampleSet(Dataset):
     def __init__(self, filenames=None, tracks=None, normalize=True, wave_only=False,
@@ -270,7 +311,7 @@ def cut_track_into_segments(track, annotation, frame_window=None, classes=None):
         if frame_window is not None:
             segm = track.segment_frames(int(time*track.rate), frame_window)
             if segm.n_samples == frame_window:  # do not add cropped stuff on the end
-                self.segments.append((segm, event_class))
+                segments.append((segm, event_class))
         else:
             if idx < len(annotation) - 1:
                 end_time = annotation.loc[idx+1, 'time']
@@ -283,6 +324,7 @@ def cut_track_into_segments(track, annotation, frame_window=None, classes=None):
             segments.append((segm, event_class))
 
     return segments
+
 
 class SegmentSet(Dataset):
     def __init__(self, trackset, classes='avp',

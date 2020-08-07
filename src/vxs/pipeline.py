@@ -4,6 +4,7 @@ import note_seq.sequences_lib as notes
 
 from .track import *
 from .language_model import drum_track_to_mono_classes
+from .beam_search import beam_search_decode
 
 def segment_track(track, onset_times, segm_frames=4096, **kwargs):
     """
@@ -98,7 +99,7 @@ def onsets_probas_to_pianoroll(onset_steps, probas,
     """
     num_frames = onset_steps[-1] + 1
     num_classes = probas.shape[1]
-    #probas = probas / _COUNTED_CLASS_PROBAS_DISCOUNTED   # do that in order to obtain scaled likelihoods
+    # probas = probas / _COUNTED_CLASS_PROBAS  # do that in order to obtain scaled likelihoods
     # TODO: how to combine with silences?
 
     probas_sil = np.hstack((np.ones((len(probas), 1))*silence_prob, probas*(1-silence_prob)))
@@ -145,7 +146,8 @@ def segment_classify(track, classifier, lang_model=None, bpm=None, onsets=None,
         probas_reindexed = probas[:, order_reindex]
         roll = onsets_probas_to_pianoroll(onset_steps, probas_reindexed, **kwargs)
 
-        generated_events = lang_model.modify_observation_probas(roll, **kwargs)
+        # generated_events = lang_model.modify_observation_probas(roll, **kwargs)
+        generated_events = beam_search_decode(lang_model, roll, **kwargs)
         lang_onset_steps, preds = drum_track_to_onset_steps(generated_events, class_order)
 
         # TODO: how to meaningfully allow the model to add new onsets or discard old ones?

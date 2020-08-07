@@ -21,13 +21,21 @@ def plot_track(track, onsets=None, event_type=None, color_events=False,
             })
 
         if color_events:
-            color_map = {}
+            color_map = {
+                'kd': 'r',
+                'sd': 'g',
+                'hhc': 'c',
+                'hho': 'm',
+            }
             classes = sorted(onsets['class'].unique())
-            colors = ['g', 'r', 'c', 'm', 'y', 'k', 'b', 'beige', 'grey', 'purple', 'lime']
+            add_classes = [cl for cl in classes if cl not in color_map]
+            add_colors = ['y', 'k', 'b', 'beige', 'grey', 'purple', 'lime']
+            for cl, col in zip(add_classes, add_colors):
+                color_map[cl] = col
+
             patches = []
-            for cl, color in zip(classes, colors):
-                color_map[cl] = color
-                patches.append(mpatches.Patch(color=color, label=cl))
+            for cl in classes:
+                patches.append(mpatches.Patch(color=color_map[cl], label=cl))
             plt.legend(handles=patches, loc='upper right')
 
         for (idx, row) in onsets.iterrows():

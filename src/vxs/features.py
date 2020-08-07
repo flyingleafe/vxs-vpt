@@ -34,11 +34,24 @@ def mel_specgram_cae(track, pad_time=None, device='cpu', normalize=True, **kwarg
     return S_db
 
 
-def mfcc(track, n_mfcc=20,
+def mfcc(track, n_mfcc=20, deltas=0, exclude_F0=False,
          win_size=constants.DEFAULT_STFT_WINDOW,
          hop_size=constants.DEFAULT_STFT_HOP_SIZE, **kwargs):
-    return lr.feature.mfcc(track.wave, track.rate,
-                           n_mfcc=n_mfcc, n_fft=win_size, hop_length=hop_size, **kwargs)
+    if exclude_F0:
+        n_mfcc += 1
+
+    mfccs = lr.feature.mfcc(track.wave, track.rate,
+                            n_mfcc=n_mfcc, n_fft=win_size, hop_length=hop_size, **kwargs)
+    if exclude_F0:
+        mfccs = mfccs[1:]
+
+    if deltas > 0:
+        feats = [mfccs]
+        for order in range(1, deltas+1):
+            feats.append(lr.feature.delta(mfccs, order=order, mode='nearest'))
+
+        mfccs = np.vstack(feats)
+    return mfccs
 
 
 def ramires_features(track):

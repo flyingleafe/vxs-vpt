@@ -126,14 +126,15 @@ class MonoDrumsRnnModel(events_rnn_model.EventSequenceRnnModel):
         # with the first decision of the classifier
         num_steps = len(observations)
         first_event_idx = np.argmax(observations[0])
+        first_event_proba = observations[0][first_event_idx]
         primer_events = note_seq.DrumTrack(
             events=[self._config.encoder_decoder.class_index_to_event(first_event_idx, None)])
 
         event_sequences = [primer_events]
         inputs = self._config.encoder_decoder.get_inputs_batch(event_sequences, full_length=True)
 
-        graph_initial_state = self._session.graph.get_collection('initial_state')
-        initial_states = state_util.unbatch(self._session.run(graph_initial_state))
+        in_sts = self.get_initial_state()
+        initial_states = state_util.unbatch(in_sts)
 
         initial_state = events_rnn_model.ModelState(inputs=inputs[0], rnn_state=initial_states[0],
                                                     control_events=None, control_state=None)
@@ -153,7 +154,7 @@ class MonoDrumsRnnModel(events_rnn_model.EventSequenceRnnModel):
             steps_per_iteration=steps_per_iteration)
 
         tf.logging.info('Beam search yields sequence with log-likelihood: %f ',
-                        loglik)
+                        loglik + np.log(first_event_proba))
 
         return events
 
@@ -180,13 +181,13 @@ class MonoDrumsRnnModel(events_rnn_model.EventSequenceRnnModel):
 
         for i in range(num_seqs):
             # Generate a single step for one batch of event sequences.
-            batch_final_state, batch_softmax = self._generate_step_for_batch_with_observation(
-                event_sequences[i:i+1],
+            batch_softmax, batch_final_state = self.eval_step(
                 inputs[i:i+1],
                 state_util.batch(initial_states[i:i+1], 1),
-                observations[seq_len],
                 temperature)
 
+            # Adding observation probabilities to the equation
+            batch_softmax *= observations[seq_len]
             result_states.append(state_util.unbatch(batch_final_state, 1)[0])
             softmaxes.append(batch_softmax[0])
 
@@ -224,13 +225,12 @@ class MonoDrumsRnnModel(events_rnn_model.EventSequenceRnnModel):
 
         return final_event_sequences, model_states, final_logliks
 
-    def _generate_step_for_batch_with_observation(self, event_sequences, inputs, initial_state,
-                                                  observation, temperature):
+    def eval_step(self, inputs, states, temperature=1.0):
         """
         Extends a batch of sequences by a single step each, taking into account
         given observations probability
         """
-        assert len(event_sequences) == self._batch_size()
+        assert len(inputs) == self._batch_size() and len(states) == self._batch_size()
 
         graph_inputs = self._session.graph.get_collection('inputs')[0]
         graph_initial_state = self._session.graph.get_collection('initial_state')
@@ -240,24 +240,15 @@ class MonoDrumsRnnModel(events_rnn_model.EventSequenceRnnModel):
 
         feed_dict = {
             graph_inputs: inputs,
-            tuple(graph_initial_state): initial_state,
+            tuple(graph_initial_state): states,
             graph_temperature: temperature
         }
         final_state, softmax = self._session.run([graph_final_state, graph_softmax], feed_dict)
+        return softmax, final_state
 
-        # Adding observation probabilities to the equation
-        softmax = softmax * observation
-        return final_state, softmax
-
-        # asserting that our model only receives one last step as input
-        # assert softmax.shape[1] == 1
-        # loglik = np.zeros(len(event_sequences))
-
-        # indices = np.array(self._config.encoder_decoder.extend_event_sequences(
-        #     event_sequences, softmax / np.sum(softmax, axis=-1)))
-        # p = softmax[range(len(event_sequences)), -1, indices]
-        # return final_state, loglik + np.log(p)
-
+    def get_initial_state(self):
+        graph_initial_state = self._session.graph.get_collection('initial_state')
+        return self._session.run(graph_initial_state)
 
 def read_bundle(bundle_file_path):
     bundle_file = os.path.expanduser(bundle_file_path)
