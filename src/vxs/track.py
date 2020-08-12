@@ -63,6 +63,18 @@ class Track:
     def save(self, filepath):
         sf.write(str(filepath), self.wave, self.rate)
 
+def specdesc(track, method, buf_size=constants.DEFAULT_ONSET_BUF_SIZE,
+             hop_size=constants.DEFAULT_ONSET_HOP_SIZE, **kwargs):
+    pv = aubio.pvoc(buf_size, hop_size)
+    sd = aubio.specdesc(method, buf_size)
+    N = track.n_samples // hop_size
+    desc = np.array([])
+    for i in range(N):
+        chunk = track.wave[i*hop_size:(i+1)*hop_size]
+        desc = np.append(desc, sd(pv(chunk)))
+
+    return desc
+
 def detect_onsets(track, method, buf_size=constants.DEFAULT_ONSET_BUF_SIZE,
                   hop_size=constants.DEFAULT_ONSET_HOP_SIZE, **kwargs):
     onset_detector = aubio.onset(method=method, buf_size=buf_size, hop_size=hop_size,
@@ -104,15 +116,3 @@ def detect_beats(track, method, buf_size=constants.DEFAULT_ONSET_BUF_SIZE,
         'class': classes
     })
     return beats_detected, tempo
-
-def specdesc(track, method, buf_size=constants.DEFAULT_ONSET_BUF_SIZE,
-             hop_size=constants.DEFAULT_ONSET_HOP_SIZE, **kwargs):
-    pv = aubio.pvoc(buf_size, hop_size)
-    sd = aubio.specdesc(method, buf_size)
-    N = track.n_samples // hop_size
-    desc = np.array([])
-    for i in range(N):
-        chunk = track.wave[i*hop_size:(i+1)*hop_size]
-        desc = np.append(desc, sd(pv(chunk)))
-
-    return desc

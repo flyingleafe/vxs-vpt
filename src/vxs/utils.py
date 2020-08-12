@@ -2,14 +2,21 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
+import os
 
 from IPython import display
 
 from .track import *
 
 def plot_track(track, onsets=None, event_type=None, color_events=False,
-               title=None, return_events=False):
-    fig = plt.figure(figsize=(20, 5))
+               title=None, return_events=False, bpm=None, ax=None, figsize=(20, 5), fsize=16,
+               ylabel='Signal amplitude', xlabel='Time, seconds'):
+
+    if ax is None:
+        fig = plt.figure(figsize=figsize)
+    else:
+        plt.sca(ax)
+
     plt.plot(np.linspace(0, track.duration, track.n_samples), track.wave)
 
     events = []
@@ -44,12 +51,33 @@ def plot_track(track, onsets=None, event_type=None, color_events=False,
                 color = 'r' if not color_events else color_map[row['class']]
                 plt.axvline(x=row['time'], color=color)
 
-    plt.ylim((-1.5, 1.5))
-    plt.xlabel('Time, seconds')
-    plt.ylabel('Signal amplitude')
+        if bpm is not None:
+            fst_onset = onsets['time'].values[0]
+            last_onset = onsets['time'].values[-1]
+            sec_per_beat = 60.0 / bpm / 4
+            xticks = np.arange(fst_onset, last_onset + 0.2, sec_per_beat)
+            xlabels = []
+            for i in range(len(xticks)):
+                if i % 4 == 0:
+                    xlabels.append(str((i // 4) % 4 + 1))
+                else:
+                    xlabels.append('')
+            plt.xticks(ticks=xticks, labels=xlabels, fontsize=fsize-2)
+            plt.grid(which='both', axis='x')
+
+    max_amp = np.max(track.wave)
+    min_amp = np.min(track.wave)
+    plt.ylim((min_amp - 0.05, max_amp + 0.05))
+    plt.yticks(fontsize=fsize-2)
+    if xlabel is not None:
+        plt.xlabel(xlabel, fontsize=fsize)
+    if ylabel is not None:
+        plt.ylabel(ylabel, fontsize=fsize)
+
     if title is not None:
         plt.title(title)
-    plt.show()
+    if ax is None:
+        plt.show()
 
     if return_events:
         return events
@@ -80,3 +108,7 @@ def unzip_dataset(dataset):
         X.append(features)
         y.append(label)
     return X, y
+
+def save_plot(name):
+    os.makedirs('../plots', exist_ok=True)
+    plt.savefig(f'../plots/{name}.pdf', bbox_inches='tight')

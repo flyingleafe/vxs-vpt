@@ -7,6 +7,7 @@ DEFAULT_STFT_WINDOW = 4096
 DEFAULT_STFT_HOP_SIZE = 512
 
 EVENT_CLASSES = ['kd', 'sd', 'hhc', 'hho']
+EVENT_CLASS_IXS = {cl: ix for ix, cl in enumerate(EVENT_CLASSES)}
 
 MIDI_PITCHES = {
     'kd': 36,
