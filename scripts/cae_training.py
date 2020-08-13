@@ -7,35 +7,10 @@ import os
 from tqdm import tqdm
 
 from torch.utils.data import ConcatDataset, DataLoader
-from catalyst import dl
 from catalyst.utils import metrics
 from torch.nn import functional as F
-from catalyst.dl import AlchemyLogger
 
 import vxs
-
-class ConvAERunner(dl.Runner):
-    def _handle_batch(self, batch):
-        x = batch          # ignore the raw waveform
-        y, z = self.model(x)
-        loss = F.mse_loss(y, x)
-        self.batch_metrics = {
-            'loss': loss
-        }
-
-        if self.is_train_loader:
-            loss.backward()
-            self.optimizer.step()
-            self.optimizer.zero_grad()
-
-def alchemy_logger(group, name):
-    return AlchemyLogger(
-        token="1da39325aff8856a81d7ad0250c9f921",
-        project="default",
-        experiment=name,
-        group=group,
-        log_on_epoch_end=False
-    )
 
 def save_sgram_cache(dataset, filename):
     tensors = []
@@ -92,15 +67,22 @@ def main(config_path):
     }
 
     num_epochs = config['num_epochs']
-    num_experiments = len(config['experiments'])
+    experiments = config['experiments']
+    num_experiments = len(experiments)
 
-    for i, (experiment, params) in enumerate(config['experiments'].items()):
+    for i, experiment in enumerate(experiments):
         print(f"Running experiment '{experiment}' ({i}/{num_experiments})")
+
+        if type(experiments) == dict:
+            params = experiments[experiment]
+        else:
+            params = vxs.CAE_CONFIGS[experiment]
+
         model = vxs.ConvAE(**params)
         optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
         exp_name = f'{group}_{PAD_TRACK_LEN}_{experiment}'
 
-        runner = ConvAERunner()
+        runner = vxs.ConvAERunner()
         runner.train(
             model=model,
             optimizer=optimizer,
@@ -109,7 +91,7 @@ def main(config_path):
             verbose=True,
             timeit=False,
             logdir=f"../logs/{exp_name}",
-            callbacks={'alchemy_logger': alchemy_logger(group, exp_name)}
+            callbacks={'alchemy_logger': vxs.alchemy_logger(group, exp_name)}
         )
 
 if __name__ == '__main__':

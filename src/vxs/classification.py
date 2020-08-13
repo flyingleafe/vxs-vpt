@@ -1,7 +1,8 @@
 import numpy as np
 import torch
 
-from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
+from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import Normalizer
@@ -9,6 +10,45 @@ from sklearn.preprocessing import Normalizer
 from vxs.features import *
 from vxs.dataset import *
 from vxs import constants
+
+class GMMClassifier(BaseEstimator, ClassifierMixin):
+    def __init__(self, n_components=10, covariance_type='full', **kwargs):
+        self.gmm_args = {
+            'n_components': n_components,
+            'covariance_type': covariance_type,
+            **kwargs
+        }
+        self.mixtures = None
+
+    def get_params(self, deep=True):
+        return self.gmm_args
+
+    def set_params(self, **params):
+        self.gmm_args = params
+
+    def fit(self, X, y):
+        self.classes_ = np.array(sorted(np.unique(y)))
+        self.mixtures = []
+
+        for cl in self.classes_:
+            X_cl = X[y == cl]
+            mixture = GaussianMixture(**self.gmm_args)
+            mixture.fit(X_cl)
+            self.mixtures.append(mixture)
+
+    def predict_log_proba(self, X):
+        cl_log_probas = []
+        for mx in self.mixtures:
+            cl_log_probas.append(mx.score_samples(X).reshape(-1, 1))
+        return np.hstack(cl_log_probas)
+
+    def predict_proba(self, X):
+        return np.exp(self.predict_log_proba(X))
+
+    def predict(self, X):
+        log_probas = self.predict_log_proba(X)
+        cl_ixs = np.argmax(log_probas, axis=1)
+        return self.classes_[cl_ixs]
 
 class ClassicFeatureTransform(BaseEstimator, TransformerMixin):
     def __init__(self, feature_type, frame_len=constants.DEFAULT_STFT_WINDOW):
@@ -50,18 +90,19 @@ class CAEFeatureTransform(BaseEstimator, TransformerMixin):
             X_.append(z.detach().squeeze().numpy().ravel())
         return X_
 
-def make_knn_classic(feature_type, normalize=True, **kwargs):
-    feature_transformer = ClassicFeatureTransform(feature_type)
-    estimators = [('features', feature_transformer)]
+def make_pipeline(classifier, transformer, normalize=True):
+    estimators = [('features', transformer)]
     if normalize:
         estimators.append(('normalizer', Normalizer()))
-    estimators.append(('knn', KNeighborsClassifier(**kwargs)))
+    estimators.append(('classifier', classifier))
     return Pipeline(estimators)
 
+def make_knn_classic(feature_type, normalize=True, **kwargs):
+    return make_pipeline(KNeighborsClassifier(**kwargs),
+                         ClassicFeatureTransform(feature_type),
+                         normalize=normalize)
+
 def make_knn_cae(encoder, normalize=True, **kwargs):
-    feature_transformer = CAEFeatureTransform(encoder)
-    estimators = [('cae_features', feature_transformer)]
-    if normalize:
-        estimators.append(('normalizer', Normalizer()))
-    estimators.append(('knn', KNeighborsClassifier(**kwargs)))
-    return Pipeline(estimators)
+    return make_pipeline(KNeighborsClassifier(**kwargs),
+                         CAEFeatureTransform(encoder),
+                         normalize=normalize)

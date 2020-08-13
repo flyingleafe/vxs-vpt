@@ -1,6 +1,8 @@
 import torch
 
 from torch import nn
+from catalyst import dl
+from catalyst.dl import AlchemyLogger
 
 CAE_CONFIGS = {
     'square-1': {
@@ -103,3 +105,27 @@ def get_CAE_model(config_type, ckp_path=None):
         model.load_state_dict(
             torch.load(ckp_path, map_location=map_location)['model_state_dict'])
     return model
+
+
+class ConvAERunner(dl.Runner):
+    def _handle_batch(self, batch):
+        x = batch          # ignore the raw waveform
+        y, z = self.model(x)
+        loss = F.mse_loss(y, x)
+        self.batch_metrics = {
+            'loss': loss
+        }
+
+        if self.is_train_loader:
+            loss.backward()
+            self.optimizer.step()
+            self.optimizer.zero_grad()
+
+def alchemy_logger(group, name):
+    return AlchemyLogger(
+        token="1da39325aff8856a81d7ad0250c9f921",
+        project="default",
+        experiment=name,
+        group=group,
+        log_on_epoch_end=False
+    )
