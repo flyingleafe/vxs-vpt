@@ -54,9 +54,9 @@ def main(config_path):
         tensors = torch.load(save_file_name)
         if len(tensors) != len(common_set):
             print(f'Cached dataset length is invalid (expected {len(common_set)}, got {len(tensors)}), re-caching')
-            tensors = save_sgram_cache(common_set, filename)
+            tensors = save_sgram_cache(common_set, save_file_name)
     else:
-        tensors = save_sgram_cache(common_set, filename)
+        tensors = save_sgram_cache(common_set, save_file_name)
 
     tensors_set = vxs.ListDataset(tensors)
 

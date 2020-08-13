@@ -23,7 +23,7 @@ data:
         val_train_split: 0.1
         test_train_split: 1
 
-num_epochs: 30
+num_epochs: 20
 experiments:
     square-1:
         outer_kernel_size: [5,5]
