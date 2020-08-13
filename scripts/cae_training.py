@@ -15,7 +15,7 @@ import vxs
 def save_sgram_cache(dataset, filename):
     tensors = []
     for i in tqdm(range(len(dataset)), desc='Pre-caching spectrograms'):
-        tensors.append(common_set[i])
+        tensors.append(dataset[i])
     torch.save(tensors, filename)
     return tensors
 
