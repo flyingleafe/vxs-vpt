@@ -51,9 +51,25 @@ def cut_avp(root, savedir, subset):
         pdir = savedir_f.format(p)
         save_segments(ds, pdir)
 
+ENST_DRUM_TYPES = {
+    'hi-hat': ['chh', 'ohh'],
+    'kick': ['bd'],
+    'snare': ['sd', 'sd-'],
+}
+        
+def cut_enst(root, savedir):
+    for audio_type, fit_classes in ENST_DRUM_TYPES.items():
+        pdir = str(savedir / audio_type)
+        print(f'Extracting {audio_type}')
+        ds = vxs.ENSTDrumsTrackSet(root, audio_type=audio_type)
+        for track, anno in tqdm(ds.annotated_tracks(), 'Tracks'):
+            anno = anno[anno['class'].isin(fit_classes)].reset_index()
+            segments = vxs.cut_track_into_segments(track, anno)
+            save_segments(segments, pdir)
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Cut beatbox dataset into chunks')
-    parser.add_argument('type', choices=['avp', 'beatboxset1'], type=str,
+    parser.add_argument('type', choices=['avp', 'beatboxset1', 'enst'], type=str,
                         help='Type of input dataset')
     parser.add_argument('root', metavar='AVP_ROOT', type=PurePath,
                         help='Dataset root directory')
@@ -71,3 +87,5 @@ if __name__ == '__main__':
         cut_avp(args.root, args.save_dir, args.subset)
     elif args.type == 'beatboxset1':
         cut_beatboxset1(args.root, args.save_dir, args.anno_type)
+    elif args.type == 'enst':
+        cut_enst(args.root, args.save_dir)

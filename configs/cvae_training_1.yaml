@@ -1,0 +1,28 @@
+group: 'cvae-initial'
+model_type: 'vae'
+
+data:
+    base_frame: 4096
+    pad_track_n: 16
+
+    datasets:
+        - name: 'vocal-sketch'
+          type: 'samples'
+          path: '../data/vocal-sketch/interactiveaudiolab-VocalSketchDataSet-6c9f381/vocal_imitations/included/*.wav'
+        - name: '200-drum-machines'
+          type: 'samples'
+          path: '../data/200-drum-machines/drums/*/*.wav'
+        - name: 'avp-set-personal'
+          type: 'samples'
+          path: '../data_temp/avp-cut/personal/*/*.wav'
+        - name: 'avp-set-fixed'
+          type: 'samples'
+          path: '../data_temp/avp-cut/fixed/*/*.wav'
+
+    splitter:
+        shuffle: true
+        val_train_split: 0.1
+        test_train_split: 1
+
+num_epochs: 20
+experiments: [ 'square-1', 'square-2', 'square-3', 'tall-1', 'tall-2', 'tall-3', 'tall-4', 'wide-1', 'wide-2', 'wide-3', 'wide-4']

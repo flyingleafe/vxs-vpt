@@ -17,7 +17,7 @@ from torchaudio.transforms import MelSpectrogram, AmplitudeToDB
 
 from vxs import constants
 from vxs.track import Track
-from vxs.features import mel_specgram_cae
+from vxs.features import mel_specgram_cae, bark_specgram_cae
 from vxs.encoding import note_seq_to_annotation
 
 class Annotation(pd.DataFrame):
@@ -41,6 +41,14 @@ def read_annotation(path, total_duration=None):
     df['class'] = df['class'].str.strip()
     if total_duration is not None:
         df = Annotation(df[df['time'] < total_duration], bpm=df.bpm)
+    return df
+
+def read_annotation_txt(path):
+    df = Annotation(columns=['time', 'class'])
+    with open(path, 'r') as f:
+        for line in f:
+            time_cl = line.strip().split(' ')
+            df.loc[len(df)] = [float(time_cl[0]), time_cl[1]]
     return df
 
 def map_annotation(df, mapping):
@@ -168,6 +176,24 @@ class Beatbox1TrackSet(TrackSet):
 
         return [(self.root_dir / (stem + '.wav'), annotations_path / (stem + '.csv')) for stem in bbs_files]
 
+ENST_TYPES = ['accompanient', 'dry_mix', 'hi-hat', 'kick', 'overhead_L', 'overhead_R', 'snare', 'tom_1', 'tom_2', 'wet_mix']
+    
+class ENSTDrumsTrackSet(TrackSet):
+    def get_annotation(self, filename, **kwargs):
+        return read_annotation_txt(filename)
+    
+    def get_filenames(self, drummers=['drummer_1', 'drummer_2', 'drummer_3'], audio_type='wet_mix', **kwargs):
+        filenames = []
+        for drummer in drummers:
+            drummer_dir = self.root_dir / drummer
+            annotation_files = [PurePath(p) for p in glob.glob(str(drummer_dir / 'annotation/*.txt'))]
+            fnames = [
+                (drummer_dir / 'audio' / audio_type / (anno_path.stem + '.wav'), anno_path)
+                for anno_path in annotation_files
+            ]
+            filenames += fnames
+        return filenames
+    
 def default_name_to_class(filename):
     if filename.startswith('k'):
         return 'kd'
@@ -230,28 +256,37 @@ class SimpleSampleSet(Dataset):
             return None
 
 
-def stratified_subset(ds: SimpleSampleSet, percentage, random_seed=None):
+def stratified_split(ds: SimpleSampleSet, percentage, random_seed=None):
     assert percentage <= 1.0 and percentage > 0.0
     classes = np.unique(ds.classes)
-    selected_tracks = np.array([])
-    selected_classes = []
+    train_ixs = np.array([], dtype=int)
+    test_ixs = np.array([], dtype=int)
 
     if random_seed is not None:
         np.random.seed(random_seed)
 
     for cl in classes:
-        ixs = np.arange(len(ds))[ds.classes == cl]
+        ixs = np.arange(len(ds))[ds.classes == cl].astype(int)
         num_cl = len(ixs)
         np.random.shuffle(ixs)
-        num_selected = int(np.ceil(num_cl * percentage))
-        selected_tracks = np.concatenate((selected_tracks, ds.tracks[ixs[:num_selected]]))
-        selected_classes += [cl]*num_selected
+        num_test = int(np.ceil(num_cl * percentage))
+        test_ixs = np.concatenate((test_ixs, ixs[:num_test]))
+        train_ixs = np.concatenate((train_ixs, ixs[num_test:]))
 
-    return SimpleSampleSet(selected_tracks, selected_classes)
+    train_ds = SimpleSampleSet(ds.tracks[train_ixs], ds.classes[train_ixs])
+    test_ds = SimpleSampleSet(ds.tracks[test_ixs], ds.classes[test_ixs])
+    return train_ds, test_ds
+
+
+def stratified_subset(ds: SimpleSampleSet, percentage, random_seed=None):
+    _, subset = stratified_split(ds, percentage, random_seed)
+    return subset
+
 
 class SampleSet(Dataset):
     def __init__(self, filenames=None, tracks=None, normalize=True, wave_only=False,
-                 spectre_only=True, cache_specgram=True, pad_specgram=128, pad_track=None):
+                 spectre_only=True, sgram_type='mel', cache_specgram=True, pad_specgram=128, pad_track=None,
+                 **kwargs):
         if isinstance(filenames, (str, PurePath)):
             filenames = glob.glob(str(filenames))
 
@@ -260,8 +295,12 @@ class SampleSet(Dataset):
         self.normalize = normalize
         self.wave_only = wave_only
         self.spectre_only = spectre_only
+        
+        assert sgram_type in ('mel', 'bark')
+        self.sgram_type = sgram_type
         self.pad_specgram = pad_specgram
         self.pad_track = pad_track
+        self.sgram_kwargs = kwargs
         if cache_specgram:
             self.specgram_cache = {}
         else:
@@ -289,8 +328,14 @@ class SampleSet(Dataset):
             track = track.cut_or_pad(self.pad_track)
 
         device = 'cpu'
-        mel_specgram_db = mel_specgram_cae(track, pad_time=self.pad_specgram,
-                                           device=device, normalize=self.normalize)
+        if self.sgram_type == 'mel':
+            mel_specgram_db = mel_specgram_cae(track, pad_time=self.pad_specgram,
+                                               device=device, normalize=self.normalize,
+                                               **self.sgram_kwargs)
+        elif self.sgram_type == 'bark':
+            mel_specgram_db = bark_specgram_cae(track, pad_time=self.pad_specgram,
+                                                device=device, normalize=self.normalize,
+                                                **self.sgram_kwargs)
 
         if self.specgram_cache is not None:
             self.specgram_cache[index] = mel_specgram_db

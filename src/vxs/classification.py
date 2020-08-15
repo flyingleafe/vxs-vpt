@@ -51,7 +51,7 @@ class GMMClassifier(BaseEstimator, ClassifierMixin):
         return self.classes_[cl_ixs]
 
 class ClassicFeatureTransform(BaseEstimator, TransformerMixin):
-    def __init__(self, feature_type, frame_len=constants.DEFAULT_STFT_WINDOW):
+    def __init__(self, feature_type, frame_len=constants.DEFAULT_STFT_WINDOW, **kwargs):
         if feature_type not in ('mfcc', 'ramires'):
             raise ValueError('Unknown feature type:' + feature_type)
         self.feature_type = feature_type
@@ -72,9 +72,10 @@ class ClassicFeatureTransform(BaseEstimator, TransformerMixin):
         return X_
 
 class CAEFeatureTransform(BaseEstimator, TransformerMixin):
-    def __init__(self, encoder, frame_len=4096):
+    def __init__(self, encoder, sgram_type='mel', frame_len=16384, **kwargs):
         self.encoder = encoder
         self.frame_len = frame_len
+        self.sgram_type = sgram_type
         self.encoder.eval()
 
     def fit(self, X, y=None):
@@ -83,13 +84,36 @@ class CAEFeatureTransform(BaseEstimator, TransformerMixin):
     def transform(self, X, y=None):
         X_ = []
         for segm in X:
+            pad_sgram = None
             if self.frame_len is not None:
                 segm = segm.cut_or_pad(self.frame_len)
-            S = mel_specgram_cae(segm)
+                pad_sgram = self.frame_len // 512
+
+            if self.sgram_type == 'mel':
+                S = mel_specgram_cae(segm, pad_time=pad_sgram)
+            else:
+                S = bark_specgram_cae(segm, pad_time=pad_sgram)
             z = self.encoder(S.unsqueeze(0))
             X_.append(z.detach().squeeze().numpy().ravel())
         return X_
 
+class CVAEFeatureTransform(BaseEstimator, TransformerMixin):
+    def __init__(self, model, **kwargs):
+        self.model = model
+        self.model.eval()
+        
+    def fit(self, X, y=None):
+        return self
+    
+    def transform(self, X, y=None):
+        X_ = []
+        for segm in X:
+            segm = segm.cut_or_pad(4096*2)
+            S = mel_specgram_cae(segm, win_size=1024, hop_size=128, n_mels=64, pad_time=64)
+            z = self.model.representation(S.unsqueeze(0))
+            X_.append(z.detach().squeeze().numpy())
+        return X_
+    
 def make_pipeline(classifier, transformer, normalize=True):
     estimators = [('features', transformer)]
     if normalize:
@@ -102,7 +126,12 @@ def make_knn_classic(feature_type, normalize=True, **kwargs):
                          ClassicFeatureTransform(feature_type),
                          normalize=normalize)
 
-def make_knn_cae(encoder, normalize=True, **kwargs):
+def make_knn_cae(encoder, normalize=True, sgram_type='mel', frame_len=16348, **kwargs):
     return make_pipeline(KNeighborsClassifier(**kwargs),
-                         CAEFeatureTransform(encoder),
+                         CAEFeatureTransform(encoder, sgram_type=sgram_type, frame_len=frame_len),
+                         normalize=normalize)
+
+def make_knn_vae(encoder, normalize=True, **kwargs):
+    return make_pipeline(KNeighborsClassifier(**kwargs),
+                         CVAEFeatureTransform(encoder),
                          normalize=normalize)

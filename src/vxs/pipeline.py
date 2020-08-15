@@ -6,18 +6,23 @@ from .track import *
 from .language_model import drum_track_to_mono_classes
 from .beam_search import beam_search_decode
 
-def segment_track(track, onset_times, segm_frames=4096, **kwargs):
+def segment_track(track, onset_times, max_segm_frames=16384, **kwargs):
     """
     Given the onset times, fetch the segments of the
     fixed length from the track.
-
+    
+    max_segm_frames = 16384  -- ~ 0.37 secs (assume that no meaningful percussive signal can be longer)
+    
     Returns:
         times     - np.array containing the time stamps of segments beginning
         segments  - np.array containing the segments (stacked)
     """
     segments = []
-    for time in onset_times:
-        segm = track.segment_frames(int(track.rate * time), segm_frames)
+    for i in range(len(onset_times)):
+        onset_frame = int(onset_times[i] * track.rate)
+        end_frame = int(onset_times[i+1] * track.rate) - 1 if i < len(onset_times) - 1 else len(track.wave) - 1
+        segm_frames = min(end_frame - onset_frame, max_segm_frames)
+        segm = track.segment_frames(onset_frame, segm_frames)
         segments.append(segm)
 
     return np.stack(segments)

@@ -1,4 +1,4 @@
-group: 'cae-fixed'
+group: 'cae-fixed-finaldata'
 
 data:
     base_frame: 4096
@@ -11,19 +11,19 @@ data:
         - name: '200-drum-machines'
           type: 'samples'
           path: '../data/200-drum-machines/drums/*/*.wav'
-        - name: 'avp-set-personal'
+        - name: 'bbset-cut'
           type: 'samples'
-          path: '../data_temp/avp-cut/personal/*/*.wav'
-        - name: 'avp-set-fixed'
+          path: '../data_temp/beatboxset1/DR/*/*.wav'
+        - name: 'enst-cut'
           type: 'samples'
-          path: '../data_temp/avp-cut/fixed/*/*.wav'
+          path: '../data_temp/enst-cut/*/*.wav'
 
     splitter:
         shuffle: true
         val_train_split: 0.1
         test_train_split: 1
 
-num_epochs: 20
+num_epochs: 25
 experiments:
     square-1:
         outer_kernel_size: [5,5]
