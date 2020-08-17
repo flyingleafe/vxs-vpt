@@ -1,11 +1,14 @@
 import numpy as np
 import torch
+import abc
 
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
 from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.pipeline import Pipeline
+from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import Normalizer
+from sklearn.model_selection import LeaveOneOut
+from mlxtend.feature_selection import SequentialFeatureSelector as SFS
 
 from vxs.features import *
 from vxs.dataset import *
@@ -69,7 +72,7 @@ class ClassicFeatureTransform(BaseEstimator, TransformerMixin):
             elif self.feature_type == 'ramires':
                 features = ramires_features(segm).ravel()
             X_.append(features)
-        return X_
+        return np.array(X_)
 
 class CAEFeatureTransform(BaseEstimator, TransformerMixin):
     def __init__(self, encoder, sgram_type='mel', frame_len=16384, **kwargs):
@@ -95,7 +98,7 @@ class CAEFeatureTransform(BaseEstimator, TransformerMixin):
                 S = bark_specgram_cae(segm, pad_time=pad_sgram)
             z = self.encoder(S.unsqueeze(0))
             X_.append(z.detach().squeeze().numpy().ravel())
-        return X_
+        return np.array(X_)
 
 class CVAEFeatureTransform(BaseEstimator, TransformerMixin):
     def __init__(self, model, **kwargs):
@@ -112,9 +115,45 @@ class CVAEFeatureTransform(BaseEstimator, TransformerMixin):
             S = mel_specgram_cae(segm, win_size=1024, hop_size=128, n_mels=64, pad_time=64)
             z = self.model.representation(S.unsqueeze(0))
             X_.append(z.detach().squeeze().numpy())
-        return X_
+        return np.array(X_)
+
     
-def make_pipeline(classifier, transformer, normalize=True):
+class RamiresClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
+    def __init__(self, n_neighbors=3, verbose=0, cv=LeaveOneOut()):
+        self.audio_features = ClassicFeatureTransform('ramires')
+        self.knn = KNeighborsClassifier(n_neighbors=n_neighbors)
+        self.sfs = SFS(self.knn, k_features='best', cv=cv, verbose=verbose)
+        
+    def get_params(self, deep=True):
+        return {
+            'knn': self.knn.get_params(deep),
+            'sfs': self.sfs.get_params(deep)
+        }
+    
+    @abc.abstractproperty
+    def classes_(self):
+        return self.knn.classes_
+    
+    def fit(self, X, y):
+        X_t = self.audio_features.transform(X)
+        self.sfs.fit(X_t, y)
+        X_best = X_t[:, self.sfs.k_feature_idx_]
+        self.knn.fit(X_best, y)
+    
+    def transform(self, X):
+        X_t = self.audio_features.transform(X)
+        return X_t[:, self.sfs.k_feature_idx_]
+        
+    def predict(self, X):
+        return self.knn.predict(self.transform(X))
+    
+    def predict_proba(self, X):
+        return self.knn.predict_proba(self.transform(X))
+    
+def prepend_normalizer(model):
+    return make_pipeline(Normalizer(), model)
+    
+def make_pipeline_util(classifier, transformer, normalize=True):
     estimators = [('features', transformer)]
     if normalize:
         estimators.append(('normalizer', Normalizer()))
@@ -122,16 +161,16 @@ def make_pipeline(classifier, transformer, normalize=True):
     return Pipeline(estimators)
 
 def make_knn_classic(feature_type, normalize=True, **kwargs):
-    return make_pipeline(KNeighborsClassifier(**kwargs),
-                         ClassicFeatureTransform(feature_type),
-                         normalize=normalize)
+    return make_pipeline_util(KNeighborsClassifier(**kwargs),
+                              ClassicFeatureTransform(feature_type),
+                              normalize=normalize)
 
 def make_knn_cae(encoder, normalize=True, sgram_type='mel', frame_len=16348, **kwargs):
-    return make_pipeline(KNeighborsClassifier(**kwargs),
-                         CAEFeatureTransform(encoder, sgram_type=sgram_type, frame_len=frame_len),
-                         normalize=normalize)
+    return make_pipeline_util(KNeighborsClassifier(**kwargs),
+                              CAEFeatureTransform(encoder, sgram_type=sgram_type, frame_len=frame_len),
+                              normalize=normalize)
 
 def make_knn_vae(encoder, normalize=True, **kwargs):
-    return make_pipeline(KNeighborsClassifier(**kwargs),
-                         CVAEFeatureTransform(encoder),
-                         normalize=normalize)
+    return make_pipeline_util(KNeighborsClassifier(**kwargs),
+                              CVAEFeatureTransform(encoder),
+                              normalize=normalize)

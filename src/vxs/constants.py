@@ -60,3 +60,9 @@ BEATBOXSET1_CLASS_MAP = {
     'sb': 'sd',
     'sk': 'sd',
 }
+
+LVT_CLASS_MAP = {
+    'Kick': 'kd',
+    'Snare': 'sd',
+    'HH': 'hhc',
+}

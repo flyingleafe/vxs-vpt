@@ -19,6 +19,7 @@ from vxs import constants
 from vxs.track import Track
 from vxs.features import mel_specgram_cae, bark_specgram_cae
 from vxs.encoding import note_seq_to_annotation
+from vxs.utils import unzip_dataset
 
 class Annotation(pd.DataFrame):
     """
@@ -194,6 +195,21 @@ class ENSTDrumsTrackSet(TrackSet):
             filenames += fnames
         return filenames
     
+class LVTTrackSet(TrackSet):
+    def get_annotation(self, filename, **kwargs):
+        return map_annotation(read_annotation(filename, total_duration=None), constants.LVT_CLASS_MAP)
+
+    def get_filenames(self, subtype, recording_type, anno_type='csv', **kwargs):
+        assert anno_type in ('csv', 'mid')
+        assert recording_type in (1, 2, 3)
+        self.subtype = subtype
+        files_dir = self.root_dir / subtype
+        annotation_files = [PurePath(p) for p in glob.glob(str(files_dir / f'*.{anno_type}'))]
+        return [
+            (files_dir / (anno_path.stem + f'{recording_type}.wav'), anno_path)
+            for anno_path in annotation_files
+        ]
+    
 def default_name_to_class(filename):
     if filename.startswith('k'):
         return 'kd'
@@ -214,6 +230,36 @@ def fetch_track_name(track):
     else:
         return ValueError(f'fetch_track_name got input of type {type(track)}')
 
+
+class TransformDataset(Dataset):
+    def __init__(self, ds, ft):
+        self.transformer = ft
+        self.ds = ds
+        self.cache = {}
+
+    def __len__(self):
+        return len(self.ds)
+
+    def __getitem__(self, index):
+        if self.transformer:
+            try:
+                return self.cache[index]
+            except KeyError:
+                x = self._transform(self.ds[index])
+                self.cache[index] = x
+                return x
+        else:
+            return self.ds[index]
+        
+    def _transform(self, item):
+        if type(item) == tuple:
+            x, cl = item
+            return self.transformer(x), cl
+        else:
+            return self.transformer(item)
+
+
+        
 class SimpleSampleSet(Dataset):
     def __init__(self, tracks, classes=None,
                  with_classes=True, name_to_class=default_name_to_class):
@@ -230,7 +276,13 @@ class SimpleSampleSet(Dataset):
         return len(self.items)
 
     def __getitem__(self, index):
-        return self.items[index]
+        item = self.items[index]
+        if type(index) == int:
+            if self.with_classes:
+                item = tuple(item)
+        else:
+            item = SimpleSampleSet(item[:, 0], item[:, 1])
+        return item
 
     @classmethod
     def from_csv(Class, csv_path, path_col='file', class_col='class'):
@@ -255,8 +307,18 @@ class SimpleSampleSet(Dataset):
         else:
             return None
 
-
-def stratified_split(ds: SimpleSampleSet, percentage, random_seed=None):
+class LazySubset(Dataset):
+    def __init__(self, ds, ixs):
+        self.ds = ds
+        self.ixs = ixs
+    
+    def __len__(self):
+        return len(self.ixs)
+    
+    def __getitem__(self, index):
+        return self.ds[self.ixs[index]]
+        
+def stratified_split_ixs(ds: SimpleSampleSet, percentage, random_seed=None):
     assert percentage <= 1.0 and percentage > 0.0
     classes = np.unique(ds.classes)
     train_ixs = np.array([], dtype=int)
@@ -272,11 +334,14 @@ def stratified_split(ds: SimpleSampleSet, percentage, random_seed=None):
         num_test = int(np.ceil(num_cl * percentage))
         test_ixs = np.concatenate((test_ixs, ixs[:num_test]))
         train_ixs = np.concatenate((train_ixs, ixs[num_test:]))
+        
+    return train_ixs, test_ixs
 
+def stratified_split(ds: SimpleSampleSet, percentage, random_seed=None):
+    train_ixs, test_ixs = stratified_split_ixs(ds, percentage, random_seed)
     train_ds = SimpleSampleSet(ds.tracks[train_ixs], ds.classes[train_ixs])
     test_ds = SimpleSampleSet(ds.tracks[test_ixs], ds.classes[test_ixs])
     return train_ds, test_ds
-
 
 def stratified_subset(ds: SimpleSampleSet, percentage, random_seed=None):
     _, subset = stratified_split(ds, percentage, random_seed)
@@ -370,6 +435,10 @@ def cut_track_into_segments(track, annotation, frame_window=None, classes=None):
 
     return segments
 
+def track_to_sample_set(track, annotation, **kwargs):
+    segments = cut_track_into_segments(track, annotation, **kwargs)
+    tracks, classes = unzip_dataset(segments)
+    return SimpleSampleSet(tracks, classes)
 
 class SegmentSet(Dataset):
     def __init__(self, trackset, classes='avp',

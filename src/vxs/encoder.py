@@ -52,6 +52,22 @@ CAE_CONFIGS = {
     },
 }
 
+CAE_INNER_SIZES = {
+    24: {   # time length of input spectrogram
+        'square-1': 512,
+        'square-2': 128,
+        'square-3': 64,
+        'tall-1': 256,
+        'tall-2': 256,
+        'tall-3': 256,
+        'tall-4': 128,
+        'wide-1': 256,
+        'wide-2': 128,
+        'wide-3': 64,
+        'wide-4': 32,
+    }
+}
+
 VAR_CAE_CONFIGS = {
     'square-1': {
         'outer_kernel_size': (5,5),
@@ -110,53 +126,6 @@ VAR_CAE_CONFIGS = {
     },
 }
 
-class ConvAE_old(nn.Module):
-    """
-    Mehrabi's convolutional autoencoder architecture (with a mistake!)
-    """
-    def __init__(self, outer_kernel_size=(5,5), strides=[(2,2)]*4,
-                 mid_kernel_size=9, padding_mode='zeros'):
-        super().__init__()
-        assert len(strides) == 4
-        strides = [tuple(st) for st in strides]
-
-        kernel_nums = [8, 16, 24, 32]
-        kernels_strides = list(zip(kernel_nums, strides))
-
-        enc_layers = []
-        dec_layers = [nn.Conv2d(1, 1, (5,5), (1, 1), (2, 2))]
-        prev_kernel_num = 1
-        kernel_size = outer_kernel_size
-
-        for (kernel_num, stride) in kernels_strides:
-            padding = (kernel_size[0] // 2, kernel_size[1] // 2)
-            enc_layers.append(nn.Conv2d(prev_kernel_num, kernel_num, kernel_size,
-                                        stride, padding, padding_mode=padding_mode))
-            enc_layers.append(nn.BatchNorm2d(kernel_num))
-            enc_layers.append(nn.ReLU(inplace=True))
-
-            dec_layers.append(nn.ReLU(inplace=True))
-            dec_layers.append(nn.BatchNorm2d(prev_kernel_num))
-            dec_layers.append(nn.Conv2d(kernel_num, prev_kernel_num, kernel_size, 1, padding,
-                                        padding_mode=padding_mode))
-            dec_layers.append(nn.UpsamplingBilinear2d(scale_factor=stride))
-
-            prev_kernel_num = kernel_num
-            # Mehrabi claims that they use (10, 10) kernels for internal layers,
-            # but even kernel sizes do not play well with even paddings if we
-            # try to preserve the (H, W) dimensions of the data. Should work as well,
-            # anyway, right?
-            kernel_size = (mid_kernel_size, mid_kernel_size)
-
-        dec_layers.reverse()
-        self.encoder = nn.Sequential(*enc_layers)
-        self.decoder = nn.Sequential(*dec_layers)
-
-    def forward(self, x):
-        z = self.encoder(x)
-        y = self.decoder(z)
-        return y, z
-
 
 class ConvAE(nn.Module):
     """
@@ -190,6 +159,11 @@ class ConvAE(nn.Module):
             dec_layers.append(nn.Conv2d(inp_channels_dec, out_channels_dec, kernel_size, 1, padding,
                                         padding_mode=padding_mode))
             dec_layers.append(nn.UpsamplingBilinear2d(scale_factor=stride))
+            
+            # Mehrabi claims that they use (10, 10) kernels for internal layers,
+            # but even kernel sizes do not play well with even paddings if we
+            # try to preserve the (H, W) dimensions of the data. Should work as well,
+            # anyway, right?
             kernel_size = (mid_kernel_size, mid_kernel_size)
 
         dec_layers.reverse()
@@ -237,36 +211,49 @@ class ConvVAE(ConvAE):
         z = z.view(z.shape[0], 32, *self.inner_size)
         return self.decoder(z), mu, logvar
 
-class MLPClassifier(nn.Module):
-    def __init__(self, input_dim, hidden_layers=[512, 512], num_classes=4):
-        layers = [nn.Linear(input_dim, hidden_layers[0]), nn.ReLU(inplace=True)]
+    
+class ConvAEClassifier(nn.Module):
+    def __init__(self, encoder, input_dim, hidden_layers=[512, 512], dropout_prob=0.2, num_classes=4):
+        super().__init__()
+        self.encoder = encoder
+        layers = [nn.Linear(input_dim, hidden_layers[0]), nn.ReLU(inplace=True), nn.Dropout(p=dropout_prob)]
         for i in range(len(hidden_layers)-1):
-            layers.append += [nn.Linear(hidden_layers[i], hidden_layers[i+1]), nn.ReLU(inplace=True)] 
+            layers += [nn.Linear(hidden_layers[i], hidden_layers[i+1]), nn.ReLU(inplace=True), nn.Dropout(p=dropout_prob)] 
 
-        layers.append += [nn.Linear(hidden_layers[-1], num_classes)]
+        layers += [nn.Linear(hidden_layers[-1], num_classes)]
         self.ff = nn.Sequential(*layers)
-        
+    
+    def head_parameters(self):
+        return self.ff.parameters()
+    
     def forward(self, x):
-        return self.ff(x)
-        
-def get_CAE_model(config_type, ckp_path=None, old_model=False):
-    ModelClass = ConvAE_old if old_model else ConvAE
-    model = ModelClass(**CAE_CONFIGS[config_type])
+        x = self.encoder(x)
+        return self.ff(x.view(x.shape[0], -1))
+
+def load_model_state_dict(model, ckp_path):
     if ckp_path is not None:
         map_location = None if torch.cuda.is_available() else torch.device('cpu')
         model.load_state_dict(
             torch.load(ckp_path, map_location=map_location)['model_state_dict'])
-    return model
 
+def get_CAE_model(config_type, ckp_path=None):
+    model = ConvAE(**CAE_CONFIGS[config_type])
+    load_model_state_dict(model, ckp_path)
+    return model
 
 def get_CVAE_model(config_type, ckp_path=None):
     model = ConvVAE(**VAR_CAE_CONFIGS[config_type])
-    if ckp_path is not None:
-        map_location = None if torch.cuda.is_available() else torch.device('cpu')
-        model.load_state_dict(
-            torch.load(ckp_path, map_location=map_location)['model_state_dict'])
+    load_model_state_dict(model, ckp_path)
     return model
 
+def get_CAE_classifier(config_type, inp_time_len=24, ckp_path=None, unsupervised=True, **kwargs):
+    cae = ConvAE(**CAE_CONFIGS[config_type])
+    if unsupervised:
+        load_model_state_dict(cae, ckp_path)
+    model = ConvAEClassifier(cae.encoder, CAE_INNER_SIZES[inp_time_len][config_type], **kwargs)
+    if not unsupervised:
+        load_model_state_dict(model, ckp_path)
+    return model
 
 class ConvAERunner(dl.Runner):
     def _handle_batch(self, batch):
@@ -329,3 +316,26 @@ def alchemy_logger(group, name):
         group=group,
         log_on_epoch_end=False
     )
+
+# Caching routines
+
+def save_sgram_cache(dataset, filename):
+    tensors = []
+    for i in tqdm(range(len(dataset)), desc='Pre-caching spectrograms'):
+        tensors.append(dataset[i])
+    torch.save(tensors, filename)
+    return tensors
+
+def save_or_load_spectrograms(common_set, save_file_name):
+    if os.path.isfile(save_file_name):
+        print(f'Found saved pre-processed spectrograms: {save_file_name}')
+        tensors = torch.load(save_file_name)
+        if len(tensors) != len(common_set):
+            print(f'Cached dataset length is invalid (expected {len(common_set)}, got {len(tensors)}), re-caching')
+            tensors = save_sgram_cache(common_set, save_file_name)
+    else:
+        tensors = save_sgram_cache(common_set, save_file_name)
+    
+    tensors = [t.float() for t in tensors]
+    tensors_set = vxs.ListDataset(tensors)
+    return tensors_set

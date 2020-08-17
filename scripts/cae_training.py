@@ -10,13 +10,6 @@ from torch.utils.data import ConcatDataset, DataLoader
 
 import vxs
 
-def save_sgram_cache(dataset, filename):
-    tensors = []
-    for i in tqdm(range(len(dataset)), desc='Pre-caching spectrograms'):
-        tensors.append(dataset[i])
-    torch.save(tensors, filename)
-    return tensors
-
 def main(config_path):
     with open(config_path) as f:
         config = yaml.safe_load(f)
@@ -64,17 +57,7 @@ def main(config_path):
 
     save_file_name = f'../data_temp/{group}_{PAD_TRACK_LEN}.pt'
     os.makedirs('../data_temp', exist_ok=True)
-    if os.path.isfile(save_file_name):
-        print(f'Found saved pre-processed spectrograms: {save_file_name}')
-        tensors = torch.load(save_file_name)
-        if len(tensors) != len(common_set):
-            print(f'Cached dataset length is invalid (expected {len(common_set)}, got {len(tensors)}), re-caching')
-            tensors = save_sgram_cache(common_set, save_file_name)
-    else:
-        tensors = save_sgram_cache(common_set, save_file_name)
-
-    tensors = [t.float() for t in tensors]
-    tensors_set = vxs.ListDataset(tensors)
+    tensors_set = vxs.save_or_load_spectrograms(common_set, save_file_name)
 
     splitter = vxs.DataSplit(tensors_set, **data_info['splitter'])
     loaders = {

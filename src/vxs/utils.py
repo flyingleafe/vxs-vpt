@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import os
 
+from tqdm import tqdm
 from IPython import display
 
 from .track import *
@@ -101,10 +102,11 @@ def display_track(track):
     plot_track(track)
     play_audio(track)
 
-def unzip_dataset(dataset):
+def unzip_dataset(dataset, tqdm_name=None):
     X = []
     y = []
-    for features, label in dataset:
+    iterator = dataset if tqdm_name is None else tqdm(dataset, tqdm_name)
+    for features, label in iterator:
         X.append(features)
         y.append(label)
     return X, y
@@ -112,3 +114,105 @@ def unzip_dataset(dataset):
 def save_plot(name):
     os.makedirs('../plots', exist_ok=True)
     plt.savefig(f'../plots/{name}.pdf', bbox_inches='tight')
+    
+def dict_min_depth(dct):
+    if type(dct) != dict:
+        return 0
+    else:
+        depths = [dict_min_depth(sub) for sub in dct.values()]
+        return np.min(depths) + 1
+
+def apply_on_depth(dct, fun, depth, cur_d=0):
+    if cur_d == depth:
+        return fun(dct)
+    else:
+        assert type(dct) == dict
+        return {key: apply_on_depth(sub, fun, depth, cur_d+1) for key, sub in dct.items()}
+
+def zip_dicts_multi_named(dicts):
+    if len(dicts) == 0:
+        return dicts
+    
+    min_depth = False
+    for v in dicts.values():
+        if type(v) != dict:
+            min_depth = True
+            break
+            
+    if min_depth:
+        return dicts
+    else:
+        dcts = list(dicts.values())
+        common_keys = set(dcts[0].keys())
+        for dct in dcts[1:]:
+            common_keys = common_keys.intersection(set(dct.keys()))
+        
+        return {
+            key: zip_dicts_multi_named({name: dct[key] for name, dct in dicts.items()})
+            for key in common_keys
+        }
+    
+def unzip_dict_ordered(dct):
+    keys, vals = zip(*list(dct.items()))
+    keys = np.array(keys)
+    vals = np.array(vals)
+    sorting = np.argsort(keys)
+    return keys[sorting], vals[sorting]
+
+def dict_argmax(dct):
+    if type(dct) != dict:
+        return [], dct
+    else:
+        keys, subs = zip(*list(dct.items()))
+        paths, vals = zip(*list(map(dict_argmax, subs)))
+        ix = np.argmax(vals)
+        return [keys[ix]] + paths[ix], vals[ix]
+    
+class MultilevelDict:
+    def __init__(self, dct, levels):
+        self.depth = dict_min_depth(dct)
+        assert self.depth == len(levels)
+        self.levels = levels
+        self.dct = dct        
+    
+    def sub(self, **kwargs):
+        key_idxs = []
+        keys = np.array(list(kwargs.keys()))
+        for key in keys:
+            if key not in self.levels:
+                raise ValueError(f'key {key} not in '+str(self.levels))
+            key_idxs.append(self.levels.index(key))
+        
+        sorting = np.argsort(key_idxs)
+        keys = keys[sorting]
+        ixs = np.array(key_idxs)[sorting]
+        d = 0
+        dct = self.dct
+        for key, ix in zip(keys, ixs):
+            val = kwargs[key]
+            dct = apply_on_depth(dct, lambda sub: sub[val], ix-d)
+            d += 1
+        new_levels = [lvl for lvl in self.levels if lvl not in keys]
+        return MultilevelDict(dct, new_levels)
+    
+    def sink(self, key):
+        assert key in self.levels
+        ix = self.levels.index(key)
+        if ix == len(self.levels) - 1:
+            return self
+        
+        dct = apply_on_depth(self.dct, zip_dicts_multi_named, ix)
+        new_levels = [lvl for lvl in self.levels if lvl != key] + [key]
+        return MultilevelDict(dct, new_levels)
+        
+#     def swap(self, key1, key2):
+#         assert key1 in self.levels
+#         assert key2 in self.levels
+#         ix1 = self.levels.index(key1)
+#         ix2 = self.levels.index(key2)
+#         l = min(ix1, ix2)
+#         r = max(ix1, ix2)
+#         if l == r:
+#             return self
+        
+    

@@ -38,7 +38,7 @@ def segment_classify_all(trackset, model, lang_model=None, verbose=False,
             if save_dir is not None:
                 analysis['onsets'].to_csv(save_path)
 
-        cf = vxs.classes_F1_score(analysis['onsets'], anno)
+        cf = vxs.classes_conf_matrix(analysis['onsets'], anno)
 
         if total_cf is None:
             total_cf = cf

@@ -166,20 +166,26 @@ def spectral_decrease(S):
     S_sum = S.sum(axis=0)
     freq_ixs = np.arange(1, S.shape[0]).reshape(-1, 1)
     S_diff = (S[1:] - S[0]) / freq_ixs
-    return S_diff.sum(axis=0) / S_sum
+    S_diff_sum = S_diff.sum(axis=0)
+    return np.divide(S_diff_sum, S_sum, out=np.zeros_like(S_diff_sum), where=S_sum!=0)
     
 def spectral_moment(S, freq, centroid, p=2):
-    return lr.feature.spectral_bandwidth(S=S, freq=freq, centroid=centroid)**p / S.sum(axis=0)
+    bdw = lr.feature.spectral_bandwidth(S=S, freq=freq, centroid=centroid)**p
+    sm = S.sum(axis=0)
+    return np.divide(bdw, sm, out=np.zeros_like(bdw), where=sm!=0)
     
 def spectral_skewness(S, freq, spread, centroid):
     moment_3 = spectral_moment(S, freq, centroid, 3)
-    return moment_3 / np.sqrt(spread)**3
+    return np.divide(moment_3, np.sqrt(spread)**3, out=np.zeros_like(moment_3), where=spread!=0)
 
 def spectral_kurtosis(S, freq, spread, centroid):
     moment_4 = spectral_moment(S, freq, centroid, 4)
-    return moment_4 / spread**2
+    return np.divide(moment_4, spread**2, out=np.zeros_like(moment_4), where=spread!=0)
 
 def ramires_features(track):
+    """
+    Reimplementation of Ramires' feature extraction routine
+    """
     FRAME_LEN = 4096
     HOP_LEN = 512
     

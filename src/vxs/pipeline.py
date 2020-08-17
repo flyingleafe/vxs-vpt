@@ -133,15 +133,20 @@ def segment_classify(track, classifier, lang_model=None, bpm=None, onsets=None,
     Perform full segment + classify procedure on a track
     """
     if bpm is None:
-        _, bpm = detect_beats(track, method=onset_method)
+        _, bpm = detect_beats(track, method=onset_method, **kwargs)
 
     if onsets is None:
-        onsets = detect_onsets(track, method=onset_method)
+        onsets = detect_onsets(track, method=onset_method, **kwargs)
     onset_times = onsets['time'].values
 
-    onset_steps, new_onset_times, onsets_quantized = quantize_onsets(onset_times, bpm, **kwargs)
-    if lang_model is not None or remove_unquantized_onsets:
-        onset_times = new_onset_times
+    if lang_model is not None:
+        onset_steps, new_onset_times, onsets_quantized = quantize_onsets(onset_times, bpm, **kwargs)
+        if remove_unquantized_onsets:
+            onset_times = new_onset_times
+    else:
+        new_onset_times = onset_times
+        onsets_quantized = onset_times
+        onset_steps = np.ones(len(onset_times))
 
     segments = segment_track(track, onset_times, **kwargs)
     probas = classifier.predict_proba(segments)
