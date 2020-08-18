@@ -102,6 +102,7 @@ def onsets_probas_to_pianoroll(onset_steps, probas,
     matrix with probabilities of each class (and silences) for each
     note frame
     """
+    assert len(onset_steps) == len(probas)
     num_frames = onset_steps[-1] + 1
     num_classes = probas.shape[1]
     # probas = probas / _COUNTED_CLASS_PROBAS  # do that in order to obtain scaled likelihoods
@@ -127,7 +128,7 @@ def drum_track_to_onset_steps(drum_track, class_order):
     return steps, np.array(class_order)[class_idxs]
 
 def segment_classify(track, classifier, lang_model=None, bpm=None, onsets=None,
-                     onset_method='complex', remove_unquantized_onsets=False,
+                     onset_method='complex', remove_unquantized_onsets=True,
                      class_order=['kd', 'sd', 'hhc', 'hho'], softmax_size=512, **kwargs):
     """
     Perform full segment + classify procedure on a track

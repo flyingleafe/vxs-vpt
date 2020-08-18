@@ -1,9 +1,13 @@
 import torch
+import os
 
 from torch import nn
+from tqdm import tqdm
 from torch.nn import functional as F
 from catalyst import dl
 from catalyst.dl import AlchemyLogger
+
+from vxs import constants, ListDataset
 
 CAE_CONFIGS = {
     'square-1': {
@@ -326,6 +330,13 @@ def save_sgram_cache(dataset, filename):
     torch.save(tensors, filename)
     return tensors
 
+def item_to_tensor(item):
+    if type(item) == tuple:
+        x, y = item
+        return x.float(), torch.tensor(constants.EVENT_CLASS_IXS[y])
+    else:
+        return item.float()
+
 def save_or_load_spectrograms(common_set, save_file_name):
     if os.path.isfile(save_file_name):
         print(f'Found saved pre-processed spectrograms: {save_file_name}')
@@ -336,6 +347,6 @@ def save_or_load_spectrograms(common_set, save_file_name):
     else:
         tensors = save_sgram_cache(common_set, save_file_name)
     
-    tensors = [t.float() for t in tensors]
-    tensors_set = vxs.ListDataset(tensors)
+    tensors = [item_to_tensor(t) for t in tensors]
+    tensors_set = ListDataset(tensors)
     return tensors_set

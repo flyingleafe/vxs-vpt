@@ -119,8 +119,10 @@ class CVAEFeatureTransform(BaseEstimator, TransformerMixin):
 
     
 class RamiresClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
-    def __init__(self, n_neighbors=3, verbose=0, cv=LeaveOneOut()):
-        self.audio_features = ClassicFeatureTransform('ramires')
+    def __init__(self, n_neighbors=3, verbose=0, cv=LeaveOneOut(), audio_transform=True):
+        self.audio_transform = audio_transform
+        if audio_transform:
+            self.audio_features = ClassicFeatureTransform('ramires')
         self.knn = KNeighborsClassifier(n_neighbors=n_neighbors)
         self.sfs = SFS(self.knn, k_features='best', cv=cv, verbose=verbose)
         
@@ -135,14 +137,16 @@ class RamiresClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
         return self.knn.classes_
     
     def fit(self, X, y):
-        X_t = self.audio_features.transform(X)
-        self.sfs.fit(X_t, y)
+        if self.audio_transform:
+            X = self.audio_features.transform(X)
+        self.sfs.fit(X, y)
         X_best = X_t[:, self.sfs.k_feature_idx_]
         self.knn.fit(X_best, y)
     
     def transform(self, X):
-        X_t = self.audio_features.transform(X)
-        return X_t[:, self.sfs.k_feature_idx_]
+        if self.audio_transform:
+            X = self.audio_features.transform(X)
+        return X[:, self.sfs.k_feature_idx_]
         
     def predict(self, X):
         return self.knn.predict(self.transform(X))

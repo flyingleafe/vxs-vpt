@@ -465,7 +465,8 @@ class SegmentSet(Dataset):
 
 class DataSplit:
 
-    def __init__(self, dataset, test_train_split=0.8, val_train_split=0.1, shuffle=False, size_limit=None):
+    def __init__(self, dataset, test_train_split=0.8, val_train_split=0.1,
+                 shuffle=False, random_seed=42, size_limit=None):
         self.dataset = dataset
 
         dataset_size = len(dataset)
@@ -473,6 +474,8 @@ class DataSplit:
         test_split = int(np.floor(test_train_split * dataset_size))
 
         if shuffle:
+            if random_seed is not None:
+                np.random.seed(random_seed)
             np.random.shuffle(self.indices)
 
         train_indices, self.test_indices = self.indices[:test_split], self.indices[test_split:]

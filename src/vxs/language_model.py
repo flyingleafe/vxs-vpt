@@ -23,6 +23,16 @@ _DRUM_CLASS_REMAPPING = [
     3,          # ride to open hi-hat
 ]
 
+_DRUM_CLASS_REMAPPING_NO_HHO = [
+    0, 1, 2,    # only kick, snare and closed hi-hat
+    2,          # open hi-hat to closed
+    0,          # the rest is the same
+    1,
+    1,
+    2,
+    2,
+]
+
 def _unary_idxs(n: int):
     idxs = []
     i = 0
@@ -80,6 +90,10 @@ class MonoDrumsRnnModel(events_rnn_model.EventSequenceRnnModel):
     Modified DrumsRNN for generating monophonic tracks and
     providing support for transcription.
     """
+    
+    def __init__(self, config, hho_included=True):
+        super().__init__(config)
+        self._hho_included = hho_included
 
     def generate_drum_track(self, num_steps, primer_drums, temperature=1.0,
                             beam_size=1, branch_factor=1, steps_per_iteration=1):
@@ -93,8 +107,9 @@ class MonoDrumsRnnModel(events_rnn_model.EventSequenceRnnModel):
         softmax = self._session.graph.get_collection('softmax')[0]
         self._session.graph.clear_collection('softmax')
 
+        remapping = _DRUM_CLASS_REMAPPING if self._hho_included else _DRUM_CLASS_REMAPPING_NO_HHO
         transform_matrix = tf.convert_to_tensor(
-            np.expand_dims(softmax_transform_matrix(softmax.shape[-1]), 0), dtype=tf.float32)
+            np.expand_dims(softmax_transform_matrix(softmax.shape[-1], remapping=remapping), 0), dtype=tf.float32)
 
         modified_softmax = tf.linalg.matmul(softmax, transform_matrix)
         self._session.graph.add_to_collection('softmax', modified_softmax)
@@ -254,7 +269,7 @@ def read_bundle(bundle_file_path):
     bundle_file = os.path.expanduser(bundle_file_path)
     return sequence_generator_bundle.read_bundle_file(bundle_file)
 
-def load_model_from_bundle(bundle_file_path):
+def load_model_from_bundle(bundle_file_path, **kwargs):
     """
     Loads the model from the pre-trained bundle
     """
@@ -272,7 +287,7 @@ def load_model_from_bundle(bundle_file_path):
     with open(meta_file, 'wb') as f:
         f.write(bundle.metagraph_file)
 
-    model = MonoDrumsRnnModel(config)
+    model = MonoDrumsRnnModel(config, **kwargs)
     model.initialize_with_checkpoint_and_metagraph(ckpt_file, meta_file)
 
     return model
