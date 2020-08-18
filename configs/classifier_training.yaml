@@ -1,0 +1,31 @@
+group: 'classifier-init'
+pretrained_caes_path: '../logs/cae-bark-finaldata_65536_{}/checkpoints/best.pth'
+
+data:
+    base_frame: 4096
+    pad_track_n: 16
+
+    datasets:
+        - name: '200-drum-machines'
+          type: 'csv'
+          path: '../data/200-drum-machines/annotation.csv'
+        - name: 'bbset-cut'
+          type: 'samples'
+          path: '../data_temp/beatboxset1/DR/*/*.wav'
+        - name: 'avp-fixed-cut'
+          type: 'samples'
+          path: '../data_temp/avp-cut/fixed/*/*.wav'
+        - name: 'avp-personal-cut'
+          type: 'samples'
+          path: '../data_temp/avp-cut/personal/*/*.wav'
+
+    splitter:
+        shuffle: true
+        val_train_split: 0.1
+        test_train_split: 1
+        random_seed: 42
+
+num_epochs_head: 10
+num_epochs_fine: 5
+
+experiments: ['wide-1']
