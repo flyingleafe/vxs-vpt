@@ -69,6 +69,45 @@ CAE_INNER_SIZES = {
         'wide-2': 128,
         'wide-3': 64,
         'wide-4': 32,
+    },
+    32: {
+        'square-1': 512,
+        'square-2': 128,
+        'square-3': 64,
+        'tall-1': 256,
+        'tall-2': 256,
+        'tall-3': 256,
+        'tall-4': 128,
+        'wide-1': 256,
+        'wide-2': 128,
+        'wide-3': 64,
+        'wide-4': 32, 
+    },
+    64: {
+        'square-1': 1024,
+        'square-2': 256,
+        'square-3': 64,
+        'tall-1': 512,
+        'tall-2': 256,
+        'tall-3': 256,
+        'tall-4': 128,
+        'wide-1': 512,
+        'wide-2': 256,
+        'wide-3': 128,
+        'wide-4': 64,
+    },
+    128: {
+        'square-1': 2048,
+        'square-2': 512,
+        'square-3': 128,
+        'tall-1': 1024,
+        'tall-2': 512,
+        'tall-3': 256,
+        'tall-4': 128,
+        'wide-1': 1024,
+        'wide-2': 512,
+        'wide-3': 256,
+        'wide-4': 128,
     }
 }
 
@@ -217,7 +256,7 @@ class ConvVAE(ConvAE):
 
     
 class ConvAEClassifier(nn.Module):
-    def __init__(self, encoder, input_dim, hidden_layers=[512, 512], dropout_prob=0.2, num_classes=4):
+    def __init__(self, encoder, input_dim, hidden_layers=[512, 512, 512], dropout_prob=0.2, num_classes=4):
         super().__init__()
         self.encoder = encoder
         layers = [nn.Linear(input_dim, hidden_layers[0]), nn.ReLU(inplace=True), nn.Dropout(p=dropout_prob)]
@@ -304,7 +343,7 @@ class ClassifierRunner(dl.Runner):
         pred = self.model(x)
         ce_loss = F.cross_entropy(pred, y)
         self.batch_metrics = {
-            'ce_loss': ce_loss, 
+            'loss': ce_loss, 
         }
         
         if self.is_train_loader:

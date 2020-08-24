@@ -4,6 +4,7 @@ pythonenv
 __pycache__
 .ipynb_checkpoints
 *.egg-info
+*.pt
 
 data/*
 data_temp/*

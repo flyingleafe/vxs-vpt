@@ -1,14 +1,12 @@
-group: 'classifier-init'
+group: 'classifier-next'
 pretrained_caes_path: '../logs/cae-bark-finaldata_65536_{}/checkpoints/best.pth'
+sgram_lengths: [24, 32, 64, 128]
 
 data:
     base_frame: 4096
     pad_track_n: 16
 
     datasets:
-        - name: '200-drum-machines'
-          type: 'csv'
-          path: '../data/200-drum-machines/annotation.csv'
         - name: 'bbset-cut'
           type: 'samples'
           path: '../data_temp/beatboxset1/DR/*/*.wav'
@@ -25,7 +23,7 @@ data:
         test_train_split: 1
         random_seed: 42
 
-num_epochs_head: 20
-num_epochs_fine: 10
+num_epochs_head: 30
+num_epochs_fine: 30
 
-experiments: ['square-1', 'square-2', 'wide-1', 'wide-2', 'tall-1', 'tall-2']
+experiments: ['square-1', 'wide-1', 'tall-1']

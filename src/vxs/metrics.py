@@ -79,10 +79,18 @@ def cf_to_prec_rec_F1(cf):
     classes = list(cf.columns)
     classes.remove('sil')
     res = pd.DataFrame(columns=['prec', 'rec', 'F1'], index=classes)
+    total_tp = 0
+    total_fp = 0
+    total_fn = 0
+
     for cl in classes:
         tp = cf.loc[cl, cl]
         fp = cf.loc[:, cl].sum() - tp
         fn = cf.loc[cl, :].sum() - tp
+        total_tp += tp
+        total_fp += fp
+        total_fn += fn
+        
         if tp == 0:
             prec = 0
             rec = 0
@@ -94,4 +102,9 @@ def cf_to_prec_rec_F1(cf):
         else:
             f1 = 2 * prec * rec / (prec + rec)
         res.loc[cl] = [prec, rec, f1]
+        
+    total_prec = total_tp / (total_tp + total_fp)
+    total_rec = total_tp / (total_tp + total_fn)
+    total_F1 = 2 * total_prec * total_rec / (total_prec + total_rec)
+    res.loc['total'] = [total_prec, total_rec, total_F1] 
     return res

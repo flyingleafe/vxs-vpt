@@ -55,7 +55,7 @@ def read_annotation_txt(path):
 def map_annotation(df, mapping):
     for i in range(len(df)):
         df.loc[i, 'class'] = mapping.get(df.loc[i, 'class'], '')
-    return df[df['class'] != '']
+    return df[df['class'] != ''].reset_index()
 
 class ListDataset(Dataset):
     """
@@ -126,6 +126,9 @@ class AVPTrackSet(TrackSet):
         'hho': 'HHclosed'
     }
 
+    def get_annotation(self, filename, **kwargs):
+        return map_annotation(read_annotation(filename, **kwargs), {cl:cl for cl in constants.EVENT_CLASSES})
+    
     def get_filenames(self, subset='*', recordings_type='all',
                       participant=None, **kwargs):
 
@@ -442,7 +445,7 @@ def track_to_sample_set(track, annotation, **kwargs):
 
 class SegmentSet(Dataset):
     def __init__(self, trackset, classes='avp',
-                 frame_window=4096, return_class=True):
+                 frame_window=None, return_class=True):
         if type(classes) == str:
             classes = constants.ANNOTATION_CLASSES[classes]
 

@@ -58,6 +58,36 @@ def generate_track(model, primer, length,
         seq.tempos[0].time = 0.0
     return seq
 
+# def window_segm(segm):
+#     n = len(segm)
+#     w = np.ones(n)
+#     front_w = lr.filters.get_window('hann', 256, False)[:128]
+#     back_w = lr.filters.get_window('hann', 1024, False)[512:]
+#     w[:128] = front_w
+#     w[-512:] = back_w
+#     return segm * w
+
+# def synthesize_track(seq, samples):
+#     class_samples = {
+#         cl: samples.tracks[samples.classes == cl]
+#         for cl in ['kd', 'sd', 'hhc', 'hho']
+#     }
+
+#     track_start_time = 0.3
+#     fr_offset = int(track_start_time * 44100)
+#     track_end_time = seq.notes[-1].end_time + track_start_time + 0.5
+#     wave = np.zeros(int(track_end_time * 44100))
+#     for note in seq.notes:zz
+#         cl = vxs.constants.MIDI_PITCHES_INV[note.pitch]
+#         start_fr = int(note.start_time * 44100) + fr_offset
+#         end_fr = int(note.end_time * 44100) + fr_offset
+#         sample = np.random.choice(class_samples[cl]).segment_frames(0, end_fr - start_fr).wave
+#         sample = window_segm(sample)
+#         real_end_fr = min(end_fr, start_fr+len(sample))
+#         wave[start_fr:real_end_fr] = window_segm(sample)
+
+#     return vxs.Track(wave)
+
 def add_noise(track, scale):
     track.wave = track.wave + np.random.normal(scale=scale, size=len(track.wave))
     return track
@@ -66,6 +96,7 @@ def main(soundfonts_dir, save_dir, tracks_per_sf, random_seed,
          temperature=1.0, noise=0.0, dry_run=False, no_primers=False):
     os.makedirs(save_dir, exist_ok=True)
     soundfonts = glob.glob(str(soundfonts_dir / '*.sf2'))
+    # soundfonts = [(soundfonts_dir / f'participant_{i}') for i in range(1, 6)]
 
     if len(soundfonts) == 0:
         raise ValueError(f'No soundfonts are found in {soundfonts_dir}')
@@ -76,6 +107,8 @@ def main(soundfonts_dir, save_dir, tracks_per_sf, random_seed,
 
     for sf in tqdm(soundfonts, 'processing soundfonts'):
         sf_name = PurePath(sf).stem
+        # sampleset = vxs.SimpleSampleSet(glob.glob(str(sf / '*.wav')))
+
         for i in tqdm(range(tracks_per_sf), 'generating tracks'):
             if no_primers:
                 primer = ['kd']
@@ -88,6 +121,7 @@ def main(soundfonts_dir, save_dir, tracks_per_sf, random_seed,
 
             track_name = f'{sf_name}_{i}'
             sound = vxs.Track(note_seq.fluidsynth(track, sample_rate=44100, sf2_path=sf))
+            # sound = synthesize_track(track, sampleset)
             if noise > 0:
                 sound = add_noise(sound, noise)
 
@@ -96,6 +130,7 @@ def main(soundfonts_dir, save_dir, tracks_per_sf, random_seed,
             else:
                 sound.save(save_dir / (track_name + '.wav'))
                 note_seq.sequence_proto_to_midi_file(track, save_dir / (track_name + '.mid'))
+
 
 
 if __name__ == '__main__':

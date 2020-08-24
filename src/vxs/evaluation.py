@@ -9,8 +9,8 @@ from IPython import display
 import vxs
 import vxs.utils as vxsu
 
-def segment_classify_all(trackset, model, lang_model=None, verbose=False,
-                         save_dir=None, reuse_saved=True,
+def segment_classify_all(trackset, model, lang_model=None, personalized_model_selector=None,
+                         verbose=False, save_dir=None, reuse_saved=True,
                          predefined_bpm=False, predefined_onsets=False, **kwargs):
     total_cf = None
     for i, (track, anno) in tqdm(enumerate(trackset.annotated_tracks()), 'Analysing tracks'):
@@ -33,7 +33,11 @@ def segment_classify_all(trackset, model, lang_model=None, verbose=False,
                     pass
 
         if analysis is None:
-            analysis = vxs.segment_classify(track, model, lang_model, bpm=bpm, onsets=onsets, **kwargs)
+            if personalized_model_selector is None:
+                analysis = vxs.segment_classify(track, model, lang_model, bpm=bpm, onsets=onsets, **kwargs)
+            else:
+                model_personal = personalized_model_selector(model, track)
+                analysis = vxs.segment_classify(track, model_personal, lang_model, bpm=bpm, onsets=onsets, **kwargs)
 
             if save_dir is not None:
                 analysis['onsets'].to_csv(save_path)
@@ -84,27 +88,31 @@ def dataset_bpms(trackset: vxs.TrackSet, method='complex', **kwargs):
     return df
 
 
-def evaluate_with_different_data_sizes(training_set, eval_set, lang_model, model_fn, savedir_pattern,
-                                       percentages=[10, 25, 40, 55, 70, 85, 100], random_seed=126,
+def evaluate_with_different_data_sizes(training_set, eval_set, lang_model, classifier, savedir_pattern,
+                                       percentages=[10, 25, 40, 55, 70, 85, 100], random_seed=42,
                                        reuse_saved=True, verbose=True, **kwargs):
     evaluation_cfs = {}
+    prev_set_fnames = set()
     for percentage in percentages:
         p = percentage / 100
         savedir = savedir_pattern.format(percentage)
 
         evaluation_cfs[percentage] = {}
 
-        if verbose:
-            print(f'{percentage}% of dataset')
-            print('Classifier training...')
         ds = vxs.stratified_subset(training_set, p, random_seed=random_seed)
+        set_fnames = set([t.filepath for t in ds.tracks])
+        assert prev_set_fnames.issubset(set_fnames)
+        prev_set_fnames = set_fnames
+        
+        if verbose:
+            print(f'{percentage}% of dataset ({len(ds)} items)')
+            print('Classifier training...')
         X, y = vxsu.unzip_dataset(ds)
-        model = model_fn()
-        model.fit(X, y)
+        classifier.fit(X, y)
 
         if verbose:
             print('Evaluating (no LM)')
-        nolm_cf, nolm_scores = vxs.segment_classify_all(eval_set, model,
+        nolm_cf, nolm_scores = vxs.segment_classify_all(eval_set, classifier,
                                                         save_dir=savedir+'/nolm', reuse_saved=reuse_saved,
                                                         quantization_conflict_resolution=None, **kwargs)
         evaluation_cfs[percentage]['nolm'] = nolm_cf
@@ -114,7 +122,7 @@ def evaluate_with_different_data_sizes(training_set, eval_set, lang_model, model
             display.display(nolm_scores.mean())
             print('Evaluating (LM)')
 
-        lm_cf, lm_scores = vxs.segment_classify_all(eval_set, model, lang_model,
+        lm_cf, lm_scores = vxs.segment_classify_all(eval_set, classifier, lang_model,
                                                     save_dir=savedir+'/lm', reuse_saved=reuse_saved,
                                                     **kwargs)
         evaluation_cfs[percentage]['lm'] = lm_cf
@@ -133,30 +141,28 @@ def metrics_series(eval_cfs, model_type):
             'sd': [],
             'hhc': [],
             'hho': [],
-            'mean': [],
+            'total': [],
         },
         'rec': {
             'kd': [],
             'sd': [],
             'hhc': [],
             'hho': [],
-            'mean': [],
+            'total': [],
         },
         'F1': {
             'kd': [],
             'sd': [],
             'hhc': [],
             'hho': [],
-            'mean': [],
+            'total': [],
         }
     }
-    classes = ['kd', 'sd', 'hhc', 'hho']
+    classes = ['kd', 'sd', 'hhc', 'hho', 'total']
     for k in series['keys']:
         cf = eval_cfs[k][model_type]
         scores = vxs.cf_to_prec_rec_F1(cf)
-        scores_mean = scores.mean()
         for metric in ['prec', 'rec', 'F1']:
             for cl in classes:
                 series[metric][cl].append(scores[metric][cl])
-            series[metric]['mean'].append(scores_mean[metric])
     return series

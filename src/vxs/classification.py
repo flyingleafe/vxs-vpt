@@ -1,5 +1,6 @@
 import numpy as np
 import torch
+import torch.nn.functional as F
 import abc
 
 from sklearn.base import BaseEstimator, TransformerMixin, ClassifierMixin
@@ -7,11 +8,12 @@ from sklearn.mixture import GaussianMixture
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import Normalizer
-from sklearn.model_selection import LeaveOneOut
+from sklearn.model_selection import LeaveOneOut, StratifiedKFold
 from mlxtend.feature_selection import SequentialFeatureSelector as SFS
 
 from vxs.features import *
 from vxs.dataset import *
+from vxs.encoder import get_CAE_classifier
 from vxs import constants
 
 class GMMClassifier(BaseEstimator, ClassifierMixin):
@@ -119,29 +121,41 @@ class CVAEFeatureTransform(BaseEstimator, TransformerMixin):
 
     
 class RamiresClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
-    def __init__(self, n_neighbors=3, verbose=0, cv=LeaveOneOut(), audio_transform=True):
+    def __init__(self, n_neighbors=3, weights='uniform',
+                 verbose=2, cv=LeaveOneOut(), audio_transform=True):
         self.audio_transform = audio_transform
         if audio_transform:
             self.audio_features = ClassicFeatureTransform('ramires')
-        self.knn = KNeighborsClassifier(n_neighbors=n_neighbors)
-        self.sfs = SFS(self.knn, k_features='best', cv=cv, verbose=verbose)
+        self.knn = KNeighborsClassifier(n_neighbors=n_neighbors, weights=weights)
+        
+        if type(cv) == int and cv != 0:
+            cv = StratifiedKFold(n_splits=cv, shuffle=True, random_state=42)
+            
+        self.sfs = SFS(self.knn, k_features='best', cv=cv, verbose=verbose, n_jobs=-1)
+        self.sfs_fit = True
+        self.classes_ = None
         
     def get_params(self, deep=True):
         return {
-            'knn': self.knn.get_params(deep),
-            'sfs': self.sfs.get_params(deep)
+            'n_neighbors': self.knn.get_params(deep)['n_neighbors'],
+            'weights': self.knn.get_params(deep)['weights'],
+            'verbose': self.sfs.get_params(deep)['verbose'],
+            'cv': self.sfs.get_params(deep)['cv'],
+            'audio_transform': self.audio_transform
         }
     
-    @abc.abstractproperty
-    def classes_(self):
-        return self.knn.classes_
+    def set_sfs_fit(self, to_fit: bool):
+        self.sfs_fit = to_fit
     
     def fit(self, X, y):
         if self.audio_transform:
             X = self.audio_features.transform(X)
-        self.sfs.fit(X, y)
-        X_best = X_t[:, self.sfs.k_feature_idx_]
+        if self.sfs_fit:
+            self.sfs.fit(X, y)
+
+        X_best = X[:, self.sfs.k_feature_idx_]
         self.knn.fit(X_best, y)
+        self.classes_ = self.knn.classes_
     
     def transform(self, X):
         if self.audio_transform:
@@ -153,6 +167,46 @@ class RamiresClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
     
     def predict_proba(self, X):
         return self.knn.predict_proba(self.transform(X))
+    
+class CAEClassifier(BaseEstimator, ClassifierMixin, TransformerMixin):
+    def __init__(self, model_type, ckp_path, audio_transform=True):
+        self._model_type = model_type
+        self._ckp_path = ckp_path
+        self._audio_transform = audio_transform
+        self.model = get_CAE_classifier(model_type, ckp_path=ckp_path.format(model_type), unsupervised=False)
+        self.model.eval()
+        self.classes_ = np.array(list(sorted(constants.EVENT_CLASSES)))
+        self._class_order = np.argsort(constants.EVENT_CLASSES)
+        
+    def get_params(self, deep=True):
+        return {
+            'model_type': self._model_type,
+            'ckp_path': self._ckp_path,
+            'audio_transform': self._audio_transform,
+        }
+    
+    def transform(self, X):
+        if self._audio_transform:
+            return [
+                bark_specgram_cae(x.cut_or_pad(16384), pad_time=24)
+                for x in X
+            ]
+        return X
+    
+    def fit(self, X, y):
+        raise NotImplementedError('CAEClassifier uses only pre-trained models')
+        
+    def predict_proba(self, X):
+        X = torch.stack(self.transform(X))
+        logits = self.model(X)
+        sm = F.softmax(logits, dim=1).detach().cpu().numpy()
+        return sm[:, self._class_order]
+    
+    def predict(self, X):
+        probas = self.predict_proba(X)
+        cl_ixs = np.argmax(probas, axis=1)
+        return self.classes_[cl_ixs]
+        
     
 def prepend_normalizer(model):
     return make_pipeline(Normalizer(), model)
@@ -167,6 +221,10 @@ def make_pipeline_util(classifier, transformer, normalize=True):
 def make_knn_classic(feature_type, normalize=True, **kwargs):
     return make_pipeline_util(KNeighborsClassifier(**kwargs),
                               ClassicFeatureTransform(feature_type),
+                              normalize=normalize)
+def make_ramires_sfs(normalize=True, **kwargs):
+    return make_pipeline_util(RamiresClassifier(audio_transform=False, **kwargs),
+                              ClassicFeatureTransform('ramires'),
                               normalize=normalize)
 
 def make_knn_cae(encoder, normalize=True, sgram_type='mel', frame_len=16348, **kwargs):

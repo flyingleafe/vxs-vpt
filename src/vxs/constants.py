@@ -1,7 +1,7 @@
 DEFAULT_SAMPLE_RATE = 44100
 
-DEFAULT_ONSET_BUF_SIZE = 1024
-DEFAULT_ONSET_HOP_SIZE = 512
+DEFAULT_ONSET_BUF_SIZE = 2048
+DEFAULT_ONSET_HOP_SIZE = 256
 
 DEFAULT_STFT_WINDOW = 4096
 DEFAULT_STFT_HOP_SIZE = 512
@@ -21,6 +21,17 @@ MIDI_PITCHES_SHORT = {
     'sd': 27,
     'hhc': 44,
     'hho': 67,
+}
+
+MIDI_PITCHES_INV = {
+    35: 'kd',
+    36: 'kd',
+    27: 'sd',
+    38: 'sd',
+    42: 'hhc',
+    44: 'hhc',
+    46: 'hho',
+    67: 'hho',
 }
 
 SF2_AVP_INCLUDED_SAMPLES_FIXED = {

@@ -5,12 +5,12 @@ data:
     pad_track_n: 16
     
     datasets:
-        - name: 'vocal-sketch'
-          type: 'samples'
-          path: '../data/vocal-sketch/interactiveaudiolab-VocalSketchDataSet-6c9f381/vocal_imitations/included/*.wav'
-        - name: '200-drum-machines'
-          type: 'samples'
-          path: '../data/200-drum-machines/drums/*/*.wav'
+        #- name: 'vocal-sketch'
+        #  type: 'samples'
+        #  path: '../data/vocal-sketch/interactiveaudiolab-VocalSketchDataSet-6c9f381/vocal_imitations/included/*.wav'
+        #- name: '200-drum-machines'
+        #  type: 'samples'
+        #  path: '../data/200-drum-machines/drums/*/*.wav'
         - name: 'avp-set-fixed'
           type: 'segments'
           subtype: 'AVPTrackSet'

@@ -10,7 +10,7 @@ class BeamTreeNode:
         self.loglik = loglik
 
 class BeamSearch:
-    def __init__(self, transition_model, beam_size=10, steps_per_iteration=4, **kwargs):
+    def __init__(self, transition_model, beam_size=10, steps_per_iteration=2, **kwargs):
         self.trans_model = transition_model
         self.beam_size = beam_size
         self.steps_per_iteration = steps_per_iteration

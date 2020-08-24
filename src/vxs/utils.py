@@ -3,6 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import os
+import pickle
 
 from tqdm import tqdm
 from IPython import display
@@ -115,6 +116,15 @@ def save_plot(name):
     os.makedirs('../plots', exist_ok=True)
     plt.savefig(f'../plots/{name}.pdf', bbox_inches='tight')
     
+def save_pickle(obj, file):
+    with open(file, 'wb') as f:
+        pickle.dump(obj, f)
+
+def load_pickle(file):
+    with open(file, 'rb') as f:
+        obj = pickle.load(f)
+    return obj
+        
 def dict_min_depth(dct):
     if type(dct) != dict:
         return 0
@@ -214,5 +224,3 @@ class MultilevelDict:
 #         r = max(ix1, ix2)
 #         if l == r:
 #             return self
-        
-    

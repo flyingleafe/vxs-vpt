@@ -42,7 +42,7 @@ def quantize_onsets(onset_times, bpm, steps_per_quarter=4,
     steps_per_second = notes.steps_per_quarter_to_steps_per_second(steps_per_quarter, bpm)
     onset_steps = (onset_times * steps_per_second + (1 - quantize_cutoff)).astype('int')
 
-    deleted_onsets = []
+    matching_steps = None
     if quantization_conflict_resolution is not None:
         if quantization_conflict_resolution == 'shift':
             # TODO: come up with something better for conflict resolution maybe?
@@ -64,17 +64,13 @@ def quantize_onsets(onset_times, bpm, steps_per_quarter=4,
                             onset_steps[i+1] += 1
 
         elif quantization_conflict_resolution == 'delete':
-            i = 0
-            while i < len(onset_steps) - 1:
-                if onset_steps[i] == onset_steps[i+1]:
-                    deleted_onsets.append(i+1)
-                    onset_steps = np.delete(onset_steps, i+1)
-                else:
-                    i += 1
+            matching_steps = onset_steps[1:] == onset_steps[:-1]
+            matching_steps = np.concatenate(([False], matching_steps))
+            onset_steps = onset_steps[~matching_steps]
 
     onset_times = onset_times + first_offset
-    if deleted_onsets:
-        onset_times = np.delete(onset_times, deleted_onsets)
+    if matching_steps is not None:
+        onset_times = onset_times[~matching_steps]
     onset_times_quantized = onset_steps.astype('float32') / steps_per_second + first_offset
 
     assert len(onset_steps) == len(onset_times)
@@ -95,6 +91,13 @@ _COUNTED_CLASS_PROBAS_DISCOUNTED = np.array([
     0.16238833789870616,
 ])
 
+_COUNTED_CLASS_PROBAS_BBS1 = np.array([
+    0.27060854553301683,
+    0.3034095813552007,
+    0.3806646525679758,
+    0.045317220543806644,
+])
+
 def onsets_probas_to_pianoroll(onset_steps, probas,
                                onehot_len=512, silence_prob=0.0, **kwargs):
     """
@@ -105,7 +108,7 @@ def onsets_probas_to_pianoroll(onset_steps, probas,
     assert len(onset_steps) == len(probas)
     num_frames = onset_steps[-1] + 1
     num_classes = probas.shape[1]
-    # probas = probas / _COUNTED_CLASS_PROBAS  # do that in order to obtain scaled likelihoods
+    #probas = probas / _COUNTED_CLASS_PROBAS_BBS1  # do that in order to obtain scaled likelihoods
     # TODO: how to combine with silences?
 
     probas_sil = np.hstack((np.ones((len(probas), 1))*silence_prob, probas*(1-silence_prob)))
@@ -127,14 +130,14 @@ def drum_track_to_onset_steps(drum_track, class_order):
     class_idxs = np.log2(mono_classes[steps]).astype('int')
     return steps, np.array(class_order)[class_idxs]
 
-def segment_classify(track, classifier, lang_model=None, bpm=None, onsets=None,
+def segment_classify(track, classifier, lang_model=None, bpm=None, onsets=None, tempo_prior=90.0,
                      onset_method='complex', remove_unquantized_onsets=True,
                      class_order=['kd', 'sd', 'hhc', 'hho'], softmax_size=512, **kwargs):
     """
     Perform full segment + classify procedure on a track
     """
     if bpm is None:
-        _, bpm = detect_beats(track, method=onset_method, **kwargs)
+        bpm = detect_tempo_lr(track, method=onset_method, prior=tempo_prior, **kwargs)
 
     if onsets is None:
         onsets = detect_onsets(track, method=onset_method, **kwargs)
