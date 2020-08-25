@@ -161,6 +161,7 @@ def metrics_series(eval_cfs, model_type):
     classes = ['kd', 'sd', 'hhc', 'hho', 'total']
     for k in series['keys']:
         cf = eval_cfs[k][model_type]
+        print(f'{k}: undetected onsets {cf.sum(axis=0)["sil"]}')
         scores = vxs.cf_to_prec_rec_F1(cf)
         for metric in ['prec', 'rec', 'F1']:
             for cl in classes:

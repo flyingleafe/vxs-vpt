@@ -87,8 +87,7 @@ def plot_track(track, onsets=None, event_type=None, color_events=False,
 def plot_segment(track, segm_start, segm_len=0.093):
     segm = track.segment(segm_start, segm_len)
     fig = plt.figure(figsize=(5,2))
-    plt.plot(np.arange(segm.n_samples), segm.wave)
-    plt.show()
+    plt.plot(np.arange(segm.n_samples) / segm.rate, segm.wave)
     return segm
 
 def play_audio(track, sr=44100):
@@ -98,9 +97,9 @@ def play_audio(track, sr=44100):
         dsp = display.Audio(track, rate=sr)
     display.display(dsp)
 
-def display_track(track):
+def display_track(track, annotation=None):
     print(track.filepath)
-    plot_track(track)
+    plot_track(track, annotation)
     play_audio(track)
 
 def unzip_dataset(dataset, tqdm_name=None):
