@@ -92,8 +92,8 @@ def detect_onsets(track, method, buf_size=constants.DEFAULT_ONSET_BUF_SIZE,
     if backtrack:
         old_onsets = onsets
         onsets_frames = lr.samples_to_frames(onsets, hop_length=hop_size)
-        rms = lr.feature.rms(y=track.wave, frame_length=hop_size, hop_length=hop_size)[0]
-        onsets_frames = lr.onset.onset_backtrack(onsets_frames, rms)
+        env = lr.feature.rms(y=track.wave, frame_length=hop_size, hop_length=hop_size)[0]
+        onsets_frames = lr.onset.onset_backtrack(onsets_frames, env)
         onsets = lr.frames_to_samples(onsets_frames, hop_length=hop_size)
     
     classes = ['x']*len(onsets)

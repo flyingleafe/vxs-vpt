@@ -108,7 +108,7 @@ def onsets_probas_to_pianoroll(onset_steps, probas,
     assert len(onset_steps) == len(probas)
     num_frames = onset_steps[-1] + 1
     num_classes = probas.shape[1]
-    #probas = probas / _COUNTED_CLASS_PROBAS_BBS1  # do that in order to obtain scaled likelihoods
+    # probas = probas / _COUNTED_CLASS_PROBAS_BBS1  # do that in order to obtain scaled likelihoods
     # TODO: how to combine with silences?
 
     probas_sil = np.hstack((np.ones((len(probas), 1))*silence_prob, probas*(1-silence_prob)))
@@ -198,5 +198,6 @@ def segment_classify(track, classifier, lang_model=None, bpm=None, onsets=None, 
 
     if lang_model is not None:
         result['note_seq'] = generated_events.to_sequence(qpm=bpm)
+        result['roll'] = roll
 
     return result

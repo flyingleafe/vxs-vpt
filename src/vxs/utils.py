@@ -10,7 +10,7 @@ from IPython import display
 
 from .track import *
 
-def plot_track(track, onsets=None, event_type=None, color_events=False,
+def plot_track(track, onsets=None, event_type=None, color_events=False, segment=None,
                title=None, return_events=False, bpm=None, ax=None, figsize=(20, 5), fsize=16,
                ylabel='Signal amplitude', xlabel='Time, seconds'):
 
@@ -19,6 +19,12 @@ def plot_track(track, onsets=None, event_type=None, color_events=False,
     else:
         plt.sca(ax)
 
+    if segment is not None:
+        l, d = segment
+        track = track.segment(l, d)
+        onsets = onsets[(onsets['time'] >= l) & (onsets['time'] < l+d)]
+        onsets['time'] = onsets['time'] - l
+        
     plt.plot(np.linspace(0, track.duration, track.n_samples), track.wave)
 
     events = []
@@ -46,7 +52,7 @@ def plot_track(track, onsets=None, event_type=None, color_events=False,
             for cl in classes:
                 patches.append(mpatches.Patch(color=color_map[cl], label=cl))
             plt.legend(handles=patches, loc='upper right')
-
+            
         for (idx, row) in onsets.iterrows():
             if event_type is None or row['class'] == event_type:
                 events.append(row['time'])
