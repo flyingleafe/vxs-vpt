@@ -1,6 +1,6 @@
 # vxs-vpt
 
-Additional material for MSc dissertation "Method for User-Friendly Vocal Percussion Transmission"
+Additional material for MSc dissertation "Deep Feature Extraction and Music Language Modelling for Amateur Vocal Percussion Transcription"
 
 ## Environment setup
 
